@@ -21,7 +21,7 @@ jobs:
 
       - name: Run AI Agent
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          
         run: python agent.py
 
       - name: Upload Zip File
