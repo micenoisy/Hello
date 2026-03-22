@@ -1,0 +1,38 @@
+name: Generate AI Image
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Enter your image prompt:'
+        required: true
+        default: 'a futuristic city at sunset, highly detailed'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Allows the bot to commit the image back to the repo
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Run AI Agent
+        env:
+          PROMPT: ${{ github.event.inputs.prompt }}
+        run: python agent.py
+
+      - name: Commit and Push Image
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add images/
+          git commit -m "Add generated image for: ${{ github.event.inputs.prompt }}"
+          git push
