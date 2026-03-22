@@ -1,13 +1,16 @@
 import os, requests, time
 
-# 1. HARDCODE YOUR API KEY HERE
-HF_TOKEN = "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" 
-
-# 2. Get the prompt typed into the GitHub Actions UI
+# 1. Get environment variables securely
+HF_TOKEN = os.environ.get('HF_TOKEN')
 prompt = os.environ.get('PROMPT')
+
+if not HF_TOKEN:
+    print("Error: HF_TOKEN secret is missing! Please add it in GitHub Settings.")
+    exit(1)
+
 print(f"Generating image for: {prompt}")
 
-# 3. Call Hugging Face API (Using FLUX for high quality, fast generation)
+# 2. Call Hugging Face API (Using FLUX for high quality, fast generation)
 hf_url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
 headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 
@@ -22,7 +25,7 @@ if response.status_code != 200:
     print(f"Hugging Face API Error: {response.text}")
     exit(1)
 
-# 4. Save the image to a local folder named "images"
+# 3. Save the image to a local folder named "images"
 os.makedirs("images", exist_ok=True)
 filename = f"images/generated_{int(time.time())}.png"
 
