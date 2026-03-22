@@ -1,7 +1,7 @@
 import os, requests, time
 
 # 1. HARDCODE YOUR API KEY HERE
-HF_TOKEN = "hf_YOUR_TOKEN_HERE" 
+HF_TOKEN = "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" 
 
 # 2. Get the prompt typed into the GitHub Actions UI
 prompt = os.environ.get('PROMPT')
