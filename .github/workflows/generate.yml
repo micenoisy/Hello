@@ -27,6 +27,7 @@ jobs:
       - name: Run AI Agent
         env:
           PROMPT: ${{ github.event.inputs.prompt }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }} # Securely pulls your secret
         run: python agent.py
 
       - name: Commit and Push Image
