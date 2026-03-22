@@ -1,17 +1,25 @@
-name: Generate AI Image
+name: Generate Batch AI Images
 on:
   workflow_dispatch:
     inputs:
-      prompt:
-        description: 'Enter your image prompt:'
+      style_prefix:
+        type: string
+        description: 'Style Prefix (Keeps images consistent for video):'
+        default: 'Cinematic, hyper-realistic 8k movie still, consistent lighting, '
+      prompts:
+        type: string
+        description: 'Enter your prompts (TYPE ONE PROMPT PER LINE):'
         required: true
-        default: 'a futuristic city at sunset, highly detailed'
+        default: |
+          A lone human figure standing in an empty glowing void
+          The same human figure walking towards a glowing doorway
+          The human figure opening the doorway to reveal a bright light
 
 jobs:
   generate:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Allows the bot to commit the image back to the repo
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -26,14 +34,21 @@ jobs:
 
       - name: Run AI Agent
         env:
-          PROMPT: ${{ github.event.inputs.prompt }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }} # Securely pulls your secret
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          STYLE_PREFIX: ${{ github.event.inputs.style_prefix }}
+          PROMPTS: ${{ github.event.inputs.prompts }}
         run: python agent.py
 
-      - name: Commit and Push Image
+      - name: Upload Zip File as Downloadable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Generated_Images_Zip
+          path: generated_images.zip
+
+      - name: Commit Images to Repository
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add images/
-          git commit -m "Add generated image for: ${{ github.event.inputs.prompt }}"
+          git commit -m "Add batch generated images" || echo "No changes to commit"
           git push
