@@ -23,7 +23,7 @@ if not prompts:
     exit(1)
 
 # 2. Setup Hugging Face API
-hf_url = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
+hf_url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
 headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 
 os.makedirs("images", exist_ok=True)
