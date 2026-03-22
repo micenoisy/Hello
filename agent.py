@@ -10,8 +10,8 @@ if not HF_TOKEN:
 
 print(f"Generating image for: {prompt}")
 
-# 2. Call Hugging Face API (Using FLUX for high quality, fast generation)
-hf_url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+# 2. Call Hugging Face API (UPDATED URL to the new router format)
+hf_url = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
 headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 
 # Simple retry loop in case the HF model is waking up
@@ -19,7 +19,8 @@ for attempt in range(5):
     response = requests.post(hf_url, headers=headers, json={"inputs": prompt})
     if response.status_code == 200:
         break
-    time.sleep(10) # Wait 10 seconds and retry if model is loading
+    print(f"Model loading or busy (Status {response.status_code}). Retrying in 10 seconds...")
+    time.sleep(10) 
 
 if response.status_code != 200:
     print(f"Hugging Face API Error: {response.text}")
