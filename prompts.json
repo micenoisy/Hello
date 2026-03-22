@@ -1,9 +1,7 @@
 {
   "style_prefix": "same character consistency, male human age 25, sharp jawline, short black hair, deep eyes, neutral dark outfit, cinematic storytelling sequence, ultra smooth continuity between frames, psychological dark theme, hyper-realistic, 8k, soft film grain, dramatic shadows, volumetric lighting, moody contrast, deep blacks, subtle red and blue highlights, shallow depth of field, realistic skin texture, consistent face identity, slow cinematic progression, eerie atmosphere, ",
-  "seed": 41,
+  "seed": 71,
   "prompts": [
-    "close-up of a calm human face in darkness with soft warm light on one side",
-    "the same face slowly losing warmth as shadows creep across the other half",
-    "expression shifting from kind smile to neutral blank stare"
+    "close-up of a calm human face in darkness with soft warm light on one side"
   ]
 }
