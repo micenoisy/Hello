@@ -1,19 +1,6 @@
-name: Generate Batch AI Images
+name: Generate Video Frames from JSON
 on:
-  workflow_dispatch:
-    inputs:
-      style_prefix:
-        type: string
-        description: 'Style Prefix (Keeps images consistent for video):'
-        default: 'Cinematic, hyper-realistic 8k movie still, consistent lighting, '
-      prompts:
-        type: string
-        description: 'Enter your prompts (TYPE ONE PROMPT PER LINE):'
-        required: true
-        default: |
-          A lone human figure standing in an empty glowing void
-          The same human figure walking towards a glowing doorway
-          The human figure opening the doorway to reveal a bright light
+  workflow_dispatch: # Just a simple button now!
 
 jobs:
   generate:
@@ -35,20 +22,18 @@ jobs:
       - name: Run AI Agent
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          STYLE_PREFIX: ${{ github.event.inputs.style_prefix }}
-          PROMPTS: ${{ github.event.inputs.prompts }}
         run: python agent.py
 
-      - name: Upload Zip File as Downloadable Artifact
+      - name: Upload Zip File
         uses: actions/upload-artifact@v4
         with:
-          name: Generated_Images_Zip
+          name: Video_Frames_Zip
           path: generated_images.zip
 
-      - name: Commit Images to Repository
+      - name: Commit Images to Repo
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add images/
-          git commit -m "Add batch generated images" || echo "No changes to commit"
+          git commit -m "Add new generated video frames" || echo "No changes to commit"
           git push
