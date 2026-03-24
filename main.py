@@ -7,9 +7,11 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 INSTA_TOKEN = os.getenv("INSTA_ACCESS_TOKEN")
 INSTA_ID = os.getenv("INSTA_ACCOUNT_ID")
 
+# 📁 Ensure Folders exist
 for folder in ['assets', 'templates', 'output']:
     os.makedirs(folder, exist_ok=True)
 
+# Load Config
 with open('config.json', 'r') as f:
     config = json.load(f)
 
@@ -21,9 +23,18 @@ async def generate_content():
     prompt = f"Create a 15s dark psychology script about {topic}. Return JSON: {{'script': '...', 'caption': '...', 'hashtags': '...'}}. Hook must be strong. US English."
     try:
         response = model.generate_content(prompt)
-        return json.loads(re.search(r'\{.*\}', response.text, re.DOTALL).group())
+        text = response.text
+        # Extract JSON from potential markdown code blocks
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        return json.loads(text)
     except:
-        return {"script": "The strongest people are usually the ones who stay silent.", "caption": "Silence is power.", "hashtags": "#darkpsychology"}
+        return {
+            "script": "The strongest people are usually the ones who stay silent. They observe everything while you notice nothing.",
+            "caption": "Silence is power. #darkpsychology",
+            "hashtags": "#mindset #manipulation"
+        }
 
 async def create_voice(text):
     path = "assets/voice.mp3"
@@ -33,7 +44,7 @@ async def create_voice(text):
     return path, float(res.stdout or 15.0)
 
 def render_video(data, voice_path, duration):
-    # 1. Background
+    # 1. Background Setup
     templates = [f for f in os.listdir('templates') if f.endswith('.mp4')]
     if templates:
         v_in = ["-stream_loop", "-1", "-i", f"templates/{random.choice(templates)}"]
@@ -42,12 +53,12 @@ def render_video(data, voice_path, duration):
         v_in = ["-f", "lavfi", "-i", "color=c=0x0a0a0a:s=1080x1920:d=1"]
         v_filt = "vignette=PI/3"
 
-    # 2. Assets
+    # 2. Asset Checks
     font = "assets/font.ttf"
     f_path = f"fontfile='{font}':" if os.path.exists(font) else ""
     m_path, s_path = "assets/music.mp3", "assets/sfx.mp3"
     
-    # 3. Subtitles (FIXED MATH)
+    # 3. Subtitle Generation (Safe Math)
     words = re.findall(r"[\w']+", data['script'].upper())
     t_per_w = duration / len(words)
     draw_filters = []
@@ -57,16 +68,15 @@ def render_video(data, voice_path, duration):
         color = "yellow" if word.lower() in config['power_words'] else "white"
         if i == 0: color = "red"
         
-        # Fixed formula to prevent "fontsize overflow"
-        # We use max(0, t-start) so the exponent never goes positive/huge
+        # Size formula: 0 until word starts, then pops and shrinks
         size = f"if(lt(t,{start}),0,100+40*exp(-15*(t-{start})))"
         
-        # Clean text for FFmpeg
-        clean_word = word.replace("'", "").replace(":", "")
+        # Remove characters that break FFmpeg
+        clean_word = word.replace("'", "").replace(":", "").replace(",", "")
         f = f"drawtext=text='{clean_word}':{f_path}fontcolor={color}:fontsize='{size}':borderw=4:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,{start},{end})'"
         draw_filters.append(f)
 
-    # 4. Audio Mixing
+    # 4. Audio Inputs & Mixing
     a_ins = ["-i", voice_path]
     has_m = os.path.exists(m_path)
     has_s = os.path.exists(s_path)
@@ -88,15 +98,32 @@ def render_video(data, voice_path, duration):
     else:
         final_a = "[1:a]volume=1.0[aout]"
 
-    # 5. Execute
+    # 5. Execute Render
     cmd = ["ffmpeg", "-y"] + v_in + a_ins + [
         "-filter_complex", f"[0:v]{v_filt},{','.join(draw_filters)}[vout];{final_a}",
         "-map", "[vout]", "-map", "[aout]", "-t", str(duration),
         "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "output/final.mp4"
     ]
-    
-    print("🎬 Rendering...")
     subprocess.run(cmd)
+
+def upload_logic(path, caption):
+    if not INSTA_TOKEN or not INSTA_ID or "YOUR" in INSTA_TOKEN:
+        print("💡 No API keys found. Download the video from GitHub Artifacts.")
+        return
+    try:
+        files = {'fileToUpload': open(path, 'rb')}
+        v_url = requests.post("https://catbox.moe/user/api.php", data={'reqtype': 'fileupload'}, files=files).text
+        r = requests.post(f"https://graph.facebook.com/v19.0/{INSTA_ID}/media", data={
+            'video_url': v_url, 'caption': caption, 'media_type': 'REELS', 'access_token': INSTA_TOKEN
+        }).json()
+        cid = r.get('id')
+        if cid:
+            print("⏳ Processing upload to Instagram...")
+            time.sleep(45)
+            requests.post(f"https://graph.facebook.com/v19.0/{INSTA_ID}/media_publish", data={'creation_id': cid, 'access_token': INSTA_TOKEN})
+            print("🚀 Posted successfully!")
+    except Exception as e:
+        print(f"❌ Upload failed: {e}")
 
 async def main():
     print("🚀 Agent Starting...")
@@ -105,6 +132,13 @@ async def main():
     render_video(data, v_path, duration)
     
     if os.path.exists("output/final.mp4"):
+        print("✅ Video Created Successfully.")
+        upload_logic("output/final.mp4", f"{data['caption']}\n\n{data['hashtags']}")
+    else:
+        print("❌ Video creation failed.")
+
+if __name__ == "__main__":
+    asyncio.run(main())    if os.path.exists("output/final.mp4"):
         print("✅ Success! Video ready in output/final.mp4")
     else:
         print("❌ Video creation failed.")
