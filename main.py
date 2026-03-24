@@ -35,7 +35,7 @@ async def get_script():
         return json.loads(m.group()), cfg
     except Exception as e:
         print(f"⚠️ AI FAIL ({e}): Using Fallback.")
-        return {"script": "NEVER REVEAL THE TRUTH. THE MOST DANGEROUS PERSON WATCHES EVERYTHING. THEY KNOW YOUR NEXT MOVE. AND THAT IS WHY YOU..."}, {"red_words": ["never", "dangerous", "truth"], "yellow_words": ["everything", "move"]}
+        return {"script": "NEVER REVEAL THE TRUTH, THE MOST DANGEROUS PERSON WATCHES EVERYTHING, THEY KNOW YOUR NEXT MOVE, AND THAT IS WHY YOU..."}, {"red_words": ["never", "dangerous", "truth"], "yellow_words": ["everything", "move"]}
 
 # [3] NATURAL AUDIO: VOICE -> WHISPER SYNC
 async def process_audio(text):
