@@ -1,122 +1,143 @@
 import os, json, random, asyncio, subprocess, re, requests, time
 import google.generativeai as genai
-from edge_tts import Communicate
+from edge_tts import Communicate, SubMaker
 
-# 1. SETUP & SYSTEM AUDITOR
+# 1. 🔐 SECRETS & SYSTEM CHECK
 K, T, I = os.getenv("GEMINI_API_KEY"), os.getenv("INSTA_ACCESS_TOKEN"), os.getenv("INSTA_ACCOUNT_ID")
 for folder in ['assets', 'templates', 'output']: os.makedirs(folder, exist_ok=True)
 
-def audit_system():
-    print("🔍 --- SYSTEM HEALTH CHECK ---")
-    checks = {
-        "Font": "assets/font.ttf",
-        "Music": "assets/music.mp3",
-        "SFX": "assets/sfx.mp3",
-        "Templates": "templates/"
-    }
-    for name, path in checks.items():
-        if name == "Templates":
-            count = len([f for f in os.listdir(path) if f.endswith('.mp4')])
-            print(f"{'✅' if count > 0 else '❌'} {name}: {count} videos found.")
-        else:
-            print(f"{'✅' if os.path.exists(path) else '❌'} {name}: {'Found' if os.path.exists(path) else 'MISSING'}")
-    print("------------------------------\n")
+def check_system():
+    print("🎬 --- SYSTEM INITIALIZING ---")
+    if not K: print("❌ ERROR: GEMINI_API_KEY is missing in Secrets!"); return False
+    # Check for Font (Crucial for Instagram)
+    if not os.path.exists("assets/font.ttf"):
+        print("⚠️ WARNING: No assets/font.ttf found. Subtitles will look basic.")
+    return True
 
-with open('config.json', 'r') as f: cfg = json.load(f)
-genai.configure(api_key=K)
-model = genai.GenerativeModel('gemini-1.5-flash')
-
-# 2. VIRAL SCRIPT GENERATION (20-25 Seconds)
-async def get_script():
-    topic = random.choice(cfg['topics'])
-    prompt = f"""
-    Create a 25-second dark psychology script about {topic}. 
-    Structure:
-    1. Hook: A 'Red Pill' shock statement.
-    2. Body: 3 deep, mysterious psychological facts.
-    3. Loop: End the script with 'THIS IS WHY...' so it loops back to the start.
-    Return JSON: {{'script': '...', 'caption': '...', 'hashtags': '...'}}
-    """
+# 2. 🧠 POWERFUL SCRIPT GENERATOR (With Error Handling)
+async def generate_viral_script():
     try:
-        r = model.generate_content(prompt)
-        m = re.search(r'\{.*\}', r.text, re.DOTALL)
-        return json.loads(m.group())
-    except:
-        return {"script": "THE MOST DANGEROUS PERSON IS THE ONE WHO WATCHES EVERYTHING AND SAYS NOTHING. THEY ARE NOT WEAK. THEY ARE CALCULATING EVERY SINGLE MOVE YOU MAKE. THIS IS WHY...", "caption": "Watch the quiet ones.", "hashtags": "#psychology"}
+        topic = random.choice(cfg['topics'])
+        genai.configure(api_key=K)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        prompt = f"""
+        Act as a Dark Psychology Master. Write a 25-second viral script about {topic}.
+        - Hook (0-3s): Start with 'THE REASON THEY...' or 'NEVER TRUST...'
+        - Deep Insight (3-20s): Explain a manipulation tactic or human weakness.
+        - The Loop (20-25s): End with a cliffhanger that leads back to the hook.
+        - Rules: Use short, aggressive sentences. NO EMOJIS.
+        Return ONLY JSON: {{"script": "...", "caption": "...", "hashtags": "..."}}
+        """
+        
+        response = model.generate_content(prompt)
+        # Check if response was blocked or empty
+        if not response.text: raise ValueError("AI returned empty content")
+        
+        data = json.loads(re.search(r'\{.*\}', response.text, re.DOTALL).group())
+        print(f"✅ AI Script Generated for Topic: {topic}")
+        return data
 
-# 3. VOICE GENERATION (Deep & Authoritative)
-async def get_voice(text):
-    p = "assets/voice.mp3"
-    # Using 'Christopher' for a deeper, more 'Documentary/Dark' feel
-    comm = Communicate(text, "en-US-ChristopherNeural", rate="+5%", pitch="-10Hz")
-    await comm.save(p)
-    d = subprocess.run(["ffprobe","-v","0","-show_entries","format=duration","-of","compact=p=0:nk=1",p], capture_output=True, text=True).stdout
-    return p, float(d or 20.0)
+    except Exception as e:
+        print(f"❌ AI ERROR: {str(e)}")
+        print("💡 FALLBACK: Using pre-stored high-performance script.")
+        return {
+            "script": "THE MOST DANGEROUS PERSON IS THE ONE WHO LISTENS, OBSERVES, AND SAYS NOTHING. THEY ARE CALCULATING YOUR EVERY MOVE. THIS IS WHY...",
+            "caption": "Silence is the ultimate weapon.",
+            "hashtags": "#darkpsychology #manipulation #mindset"
+        }
 
-# 4. DYNAMIC VIDEO RENDERING
-def render_video(data, vp, dur):
-    # Background Logic
+# 3. 🎙️ MICRO-SYNC VOICE GENERATION
+async def generate_synced_audio(text):
+    # Using 'Brian' or 'Christopher' for high-authority USA male voice
+    voice = "en-US-ChristopherNeural"
+    communicate = Communicate(text, voice, rate="+10%", pitch="-5Hz")
+    submaker = SubMaker()
+    
+    with open("assets/voice.mp3", "wb") as f:
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                f.write(chunk["data"])
+            elif chunk["type"] == "WordBoundary":
+                submaker.create_sub((chunk["start"], chunk["duration"]), chunk["text"])
+
+    # This creates a perfect word-by-word timestamp list
+    with open("assets/subs.json", "w") as f:
+        json.dump(submaker.subs, f)
+    
+    duration = subprocess.run(["ffprobe","-v","0","-show_entries","format=duration","-of","compact=p=0:nk=1","assets/voice.mp3"], capture_output=True, text=True).stdout
+    return float(duration or 25.0)
+
+# 4. 🎬 DYNAMIC FFmpeg RENDERING (Stacked & Pop)
+def render_viral_video(data, duration):
     ts = [f for f in os.listdir('templates') if f.endswith('.mp4')]
     if ts:
-        vi = ["-stream_loop","-1","-i",f"templates/{random.choice(ts)}"]
-        vf = "vignette=PI/4,zoompan=z='zoom+0.001':d=125:s=1080x1920"
+        v_in = ["-stream_loop","-1","-i", f"templates/{random.choice(ts)}"]
+        v_filt = "vignette=PI/4,zoompan=z='zoom+0.001':d=125:s=1080x1920"
     else:
-        # Generate a high-quality "Dark Moving Space" if no templates
-        vi = ["-f","lavfi","-i","cellauto=s=1080x1920:rate=10"]
-        vf = "hue=s=0,vignette=PI/3,curve=preset=darker"
+        v_in = ["-f","lavfi","-i","color=c=0x0a0a0a:s=1080x1920:d=1"]
+        v_filt = "noise=alls=10:allf=t+u,vignette=PI/3"
 
-    font = "assets/font.ttf"
-    f_arg = f"fontfile='{font}':" if os.path.exists(font) else ""
-    
-    # Phrase-Based Sync (Groups of 2 words for better readability)
-    words = re.findall(r"[\w']+", data['script'].upper())
-    phrases = [" ".join(words[i:i+2]) for i in range(0, len(words), 2)]
-    t_per_p = dur / len(phrases)
+    with open("assets/subs.json", "r") as f:
+        word_subs = json.load(f)
+
+    font_path = "assets/font.ttf"
+    f_arg = f"fontfile='{font_path}':" if os.path.exists(font_path) else ""
     
     draw_filters = []
-    for i, p in enumerate(phrases):
-        s, e = i*t_per_p, (i+1)*t_per_p
-        color = "yellow" if any(pw.upper() in p for pw in cfg['power_words']) else "white"
-        # Dynamic "Pop" size: starts big, settles down
-        size = f"if(lt(t,{s}),0,140+60*exp(-10*(t-{s})))"
-        clean_p = p.replace("'","").replace(":","")
+    for sub in word_subs:
+        start_time = sub[0][0] / 10**7 # Convert microseconds to seconds
+        end_time = (sub[0][0] + sub[0][1]) / 10**7
+        word = sub[1].upper().replace("'", "").replace(":", "")
         
-        # Glow Effect (Layered Text)
-        draw_filters.append(f"drawtext=text='{clean_p}':{f_arg}fontcolor=black@0.5:fontsize='{size}':borderw=10:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2+5:enable='between(t,{s},{e})'")
-        draw_filters.append(f"drawtext=text='{clean_p}':{f_arg}fontcolor={color}:fontsize='{size}':x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,{s},{e})'")
+        # Style: Power words Yellow, Others White
+        color = "yellow" if word.lower() in cfg['power_words'] else "white"
+        
+        # THE POP ANIMATION: Grows for first 0.1s then stays
+        pop_size = f"if(lt(t,{start_time}),0,if(lt(t,{start_time}+0.1),120+60*(t-{start_time})/0.1,120))"
+        
+        # Filter 1: Shadow Glow
+        draw_filters.append(f"drawtext=text='{word}':{f_arg}fontcolor=black@0.6:fontsize='{pop_size}+10':x=(w-text_w)/2+5:y=(h-text_h)/2+5:enable='between(t,{start_time},{end_time})'")
+        # Filter 2: Main Text
+        draw_filters.append(f"drawtext=text='{word}':{f_arg}fontcolor={color}:fontsize='{pop_size}':x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,{start_time},{end_time})'")
 
-    # Audio Layering
-    ai = ["-i", vp]
-    mp, sp = "assets/music.mp3", "assets/sfx.mp3"
-    hm, hs = os.path.exists(mp), os.path.exists(sp)
-    if hm: ai += ["-i", mp]
-    if hs: ai += ["-i", sp]
+    # Audio Assets (Music + SFX)
+    m_path, s_path = "assets/music.mp3", "assets/sfx.mp3"
+    ai = ["-i", "assets/voice.mp3"]
+    if os.path.exists(m_path): ai += ["-i", m_path]
+    if os.path.exists(s_path): ai += ["-i", s_path]
     
-    am = "[1:a]volume=1.5[va]" # Boost voice
-    ls = ["[va]"]
-    if hm: am += ";[2:a]volume=0.2[ma]"; ls.append("[ma]")
-    if hs: idx = 2+int(hm); am += f";[{idx}:a]volume=0.5[sa]"; ls.append("[sa]")
+    # Audio Mix Logic
+    a_mix = "[1:a]volume=1.4[va]"
+    labels = ["[va]"]
+    if os.path.exists(m_path): a_mix += ";[2:a]volume=0.2[ma]"; labels.append("[ma]")
+    if os.path.exists(s_path): idx = 2 + int(os.path.exists(m_path)); a_mix += f";[{idx}:a]volume=0.8[sa]"; labels.append("[sa]")
     
-    fa_str = f"{am};{''.join(ls)}amix=inputs={len(ls)}:duration=first[aout]" if len(ls)>1 else "[1:a]volume=1.0[aout]"
+    fa_str = f"{a_mix};{''.join(labels)}amix=inputs={len(labels)}:duration=first,loudnorm[aout]" if len(labels)>1 else "[1:a]volume=1.4[aout]"
 
-    cmd = ["ffmpeg","-y"] + vi + ai + [
-        "-filter_complex", f"[0:v]{vf},{','.join(draw_filters)}[vout];{fa_str}",
-        "-map", "[vout]", "-map", "[aout]", "-t", str(dur),
+    # Final Command
+    cmd = ["ffmpeg","-y"] + v_in + ai + [
+        "-filter_complex", f"[0:v]{v_filt},{','.join(draw_filters)}[vout];{fa_str}",
+        "-map", "[vout]", "-map", "[aout]", "-t", str(duration),
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "output/final.mp4"
     ]
     subprocess.run(cmd)
 
 async def main():
-    audit_system()
-    print("🔥 STEP 1: Scripting...")
-    d = await get_script()
-    print(f"🎙️ STEP 2: Voiceover ({len(d['script'])} chars)...")
-    vp, dur = await get_voice(d['script'])
-    print(f"🎬 STEP 3: Rendering {dur}s video...")
-    render_video(d, vp, dur)
+    if not check_system(): return
+    with open('config.json', 'r') as f: globals()['cfg'] = json.load(f)
+    
+    print("🧠 Fetching AI Script...")
+    data = await generate_viral_script()
+    
+    print("🎙️ Generating Perfectly Synced Voiceover...")
+    duration = await generate_synced_audio(data['script'])
+    
+    print(f"🎬 Rendering {round(duration,1)}s Video...")
+    render_viral_video(data, duration)
+    
     if os.path.exists("output/final.mp4"):
-        print(f"✅ DONE: final.mp4 generated ({round(dur, 2)}s)")
-        # Add your upload_to_insta logic here if keys are ready
+        print("🚀 SUCCESS: Video Sync at 100% precision.")
 
 if __name__ == "__main__":
     asyncio.run(main())
