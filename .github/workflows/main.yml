@@ -1,0 +1,38 @@
+name: Dark Psychology Automation
+on:
+  schedule:
+    - cron: '0 13 * * *' # 3x Daily (Morning)
+    - cron: '0 19 * * *' # (Afternoon)
+    - cron: '0 0 * * *'  # (Night)
+  workflow_dispatch:      # Manual Trigger Button
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          pip install google-generativeai edge-tts requests
+
+      - name: Run Script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          INSTA_ACCESS_TOKEN: ${{ secrets.INSTA_ACCESS_TOKEN }}
+          INSTA_ACCOUNT_ID: ${{ secrets.INSTA_ACCOUNT_ID }}
+        run: python main.py
+
+      - name: Save Video for Download
+        uses: actions/upload-artifact@v3
+        with:
+          name: Dark_Psychology_Reel_${{ github.run_id }}
+          path: output/final.mp4
+          retention-days: 5
