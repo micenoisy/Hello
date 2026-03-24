@@ -2,118 +2,160 @@ import os, json, random, asyncio, subprocess, re, requests, time
 import google.generativeai as genai
 from edge_tts import Communicate
 
-# 🔐 SECRETS
-K, T, I = os.getenv("GEMINI_API_KEY"), os.getenv("INSTA_ACCESS_TOKEN"), os.getenv("INSTA_ACCOUNT_ID")
-for folder in ['assets', 'templates', 'output']: os.makedirs(folder, exist_ok=True)
+# 1. SETUP & PATHS
+GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+INSTA_TOKEN = os.getenv("INSTA_ACCESS_TOKEN")
+INSTA_ID = os.getenv("INSTA_ACCOUNT_ID")
 
-def check_system():
-    print("🎬 --- SYSTEM INITIALIZING ---")
-    if not K: print("❌ ERROR: GEMINI_API_KEY missing!"); return False
-    if not os.path.exists("assets/font.ttf"): print("⚠️ WARNING: No assets/font.ttf found.")
-    return True
+for f in ['assets', 'templates', 'output']: os.makedirs(f, exist_ok=True)
 
-# 🧠 POWERFUL SCRIPT GENERATOR
-async def generate_viral_script():
+# 2. BULLETPROOF AI SCRIPT GENERATOR
+async def get_script():
+    print("🧠 AI: Generating High-Retention Script...")
     try:
-        topic = random.choice(cfg['topics'])
-        genai.configure(api_key=K)
-        # FIXED: Using stable model string
+        # Load topics from config or use defaults
+        with open('config.json', 'r') as f: cfg = json.load(f)
+        topic = random.choice(cfg.get('topics', ['manipulation', 'dark psychology']))
+        
+        genai.configure(api_key=GEMINI_KEY)
+        # Use the specific model identifier that works globally
         model = genai.GenerativeModel('gemini-1.5-flash')
         
-        prompt = f"Act as a Dark Psychology Master. Write a 25s viral script about {topic}. Start with a massive hook. NO EMOJIS. Return ONLY JSON: {{'script': '...', 'caption': '...', 'hashtags': '...'}}"
+        prompt = f"""
+        Act as a Dark Psychology Expert. Write a 25-second script about {topic}.
+        Hook: A shocking truth about human behavior.
+        Body: 3 punchy, mysterious sentences.
+        Loop: End with 'AND THAT IS WHY...' to loop perfectly.
+        Return ONLY valid JSON: {{"script": "...", "caption": "...", "hashtags": "..."}}
+        """
         
         response = model.generate_content(prompt)
-        data = json.loads(re.search(r'\{.*\}', response.text, re.DOTALL).group())
-        print(f"✅ AI Script Generated: {topic}")
-        return data
+        # Fix: Extract JSON cleanly even if AI adds markdown backticks
+        json_str = re.search(r'\{.*\}', response.text, re.DOTALL).group()
+        data = json.loads(json_str)
+        print(f"✅ AI Success: Topic '{topic}'")
+        return data, cfg
     except Exception as e:
-        print(f"❌ AI ERROR: {str(e)}")
-        return {"script": "THE QUIETEST PERSON IN THE ROOM IS OFTEN THE MOST DANGEROUS. THEY ARE NOT WEAK. THEY ARE CALCULATING. WATCH THEM. THIS IS WHY...", "caption": "Silence is power.", "hashtags": "#darkpsychology"}
+        print(f"⚠️ AI FAIL: {e}. Using viral fallback script.")
+        fallback = {
+            "script": "THE MOST DANGEROUS PERSON IS THE ONE WHO WATCHES EVERYTHING AND SAYS NOTHING. THEY ARE NOT WEAK. THEY ARE CALCULATING EVERY SINGLE MOVE YOU MAKE. AND THAT IS WHY...",
+            "caption": "Watch the quiet ones. #psychology",
+            "hashtags": "#darkpsychology #mindset"
+        }
+        # Mock config for fallback
+        mock_cfg = {"power_words": ["dangerous", "calculating", "weak", "move"]}
+        return fallback, mock_cfg
 
-# 🎙️ MICRO-SYNC VOICE GENERATION
-async def generate_synced_audio(text):
+# 3. MICRO-SYNC AUDIO ENGINE
+async def get_audio(text):
+    print("🎙️ AUDIO: Generating micro-synced voiceover...")
     voice = "en-US-ChristopherNeural"
     communicate = Communicate(text, voice, rate="+10%", pitch="-5Hz")
     
-    word_data = []
-    # Manually collect word timings for 100% precision
-    with open("assets/voice.mp3", "wb") as f:
+    word_boundaries = []
+    audio_path = "assets/voice.mp3"
+    
+    with open(audio_path, "wb") as f:
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
                 f.write(chunk["data"])
             elif chunk["type"] == "WordBoundary":
-                # Convert 100ns units to seconds
-                word_data.append({
+                # Convert 100-nanosecond units to seconds
+                word_boundaries.append({
                     "word": chunk["text"],
                     "start": chunk["offset"] / 10**7,
                     "end": (chunk["offset"] + chunk["duration"]) / 10**7
                 })
 
-    with open("assets/subs.json", "w") as f:
-        json.dump(word_data, f)
+    # Save sync data
+    with open("assets/subs.json", "w") as f: json.dump(word_boundaries, f)
     
-    res = subprocess.run(["ffprobe","-v","0","-show_entries","format=duration","-of","compact=p=0:nk=1","assets/voice.mp3"], capture_output=True, text=True)
-    return float(res.stdout or 25.0)
+    # Get total duration
+    res = subprocess.run(["ffprobe","-v","0","-show_entries","format=duration","-of","compact=p=0:nk=1",audio_path], capture_output=True, text=True)
+    return audio_path, float(res.stdout or 25.0)
 
-# 🎬 DYNAMIC RENDER
-def render_viral_video(data, duration):
-    ts = [f for f in os.listdir('templates') if f.endswith('.mp4')]
-    v_in = ["-stream_loop","-1","-i", f"templates/{random.choice(ts)}"] if ts else ["-f","lavfi","-i","color=c=0x0a0a0a:s=1080x1920:d=1"]
-    v_filt = "vignette=PI/4,zoompan=z='zoom+0.001':d=125:s=1080x1920" if ts else "noise=alls=10,vignette=PI/3"
+# 4. PRO-REELS VIDEO ENGINE
+def render_video(data, cfg, voice_path, duration):
+    print(f"🎬 VIDEO: Rendering {duration}s Reel...")
+    
+    # Background Logic
+    templates = [f for f in os.listdir('templates') if f.endswith('.mp4')]
+    if templates:
+        v_in = ["-stream_loop", "-1", "-i", f"templates/{random.choice(templates)}"]
+        v_base = "vignette=PI/4,zoompan=z='zoom+0.001':d=125:s=1080x1920"
+    else:
+        v_in = ["-f", "lavfi", "-i", "color=c=0x0a0a0a:s=1080x1920:d=1"]
+        v_base = "noise=alls=10,vignette=PI/3"
 
-    with open("assets/subs.json", "r") as f:
-        word_subs = json.load(f)
-
-    f_arg = "fontfile='assets/font.ttf':" if os.path.exists("assets/font.ttf") else ""
+    # Subtitle Logic
+    with open("assets/subs.json", "r") as f: word_data = json.load(f)
+    
+    font = "assets/font.ttf"
+    f_arg = f"fontfile='{font}':" if os.path.exists(font) else ""
+    
+    # Build Filter Chain
     draw_filters = []
-    
-    # Phrase grouping: shows 2 words at a time for better visual sync
-    for i in range(0, len(word_subs), 2):
-        chunk = word_subs[i:i+2]
-        start_t = chunk[0]["start"]
-        end_t = chunk[-1]["end"]
-        phrase = " ".join([w["word"] for w in chunk]).upper().replace("'", "")
+    # Group words in 2s for better "Instagram Style" pacing
+    for i in range(0, len(word_data), 2):
+        chunk = word_data[i:i+2]
+        t_start = chunk[0]["start"]
+        t_end = chunk[-1]["end"]
+        phrase = " ".join([w["word"] for w in chunk]).upper().replace("'", "").replace(":", "")
         
-        color = "yellow" if any(pw.lower() in phrase.lower() for pw in cfg['power_words']) else "white"
+        # Power word highlighting
+        color = "yellow" if any(pw.lower() in phrase.lower() for pw in cfg.get('power_words', [])) else "white"
         
-        # Smooth Pop & Shake Animation
-        size = f"if(lt(t,{start_t}),0,if(lt(t,{start_t}+0.1),120+40*(t-{start_t})/0.1,120))"
+        # The 'Pop' animation
+        size = f"if(lt(t,{t_start}),0,if(lt(t,{t_start}+0.1),120+45*(t-{t_start})/0.1,120))"
         
-        # Draw Black Shadow then Colored Text
-        draw_filters.append(f"drawtext=text='{phrase}':{f_arg}fontcolor=black@0.7:fontsize='{size}+8':x=(w-text_w)/2+4:y=(h-text_h)/2+4:enable='between(t,{start_t},{end_t})'")
-        draw_filters.append(f"drawtext=text='{phrase}':{f_arg}fontcolor={color}:fontsize='{size}':x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,{start_t},{end_t})'")
+        # Layer 1: Shadow Glow
+        draw_filters.append(f"drawtext=text='{phrase}':{f_arg}fontcolor=black@0.8:fontsize='{size}+10':x=(w-text_w)/2+4:y=(h-text_h)/2+4:enable='between(t,{t_start},{t_end})'")
+        # Layer 2: Main Text
+        draw_filters.append(f"drawtext=text='{phrase}':{f_arg}fontcolor={color}:fontsize='{size}':x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,{t_start},{t_end})'")
 
+    # Filter Assembly
+    filter_complex = f"[0:v]{v_base}"
+    if draw_filters:
+        filter_complex += "," + ",".join(draw_filters)
+    filter_complex += "[vout]"
+
+    # Audio Mix
     m_path = "assets/music.mp3"
-    ai = ["-i", "assets/voice.mp3"]
-    if os.path.exists(m_path): ai += ["-i", m_path]
-    
-    a_mix = "[1:a]volume=1.5[va]"
-    labels = ["[va]"]
+    a_ins = ["-i", voice_path]
     if os.path.exists(m_path):
-        a_mix += ";[2:a]volume=0.2[ma]"
-        labels.append("[ma]")
-    
-    final_a = f"{a_mix};{''.join(labels)}amix=inputs={len(labels)}:duration=first,loudnorm[aout]" if len(labels)>1 else "[1:a]volume=1.5[aout]"
+        a_ins += ["-i", m_path]
+        a_mix = "[1:a]volume=1.5[va];[2:a]volume=0.2[ma];[va][ma]amix=inputs=2:duration=first,loudnorm[aout]"
+    else:
+        a_mix = "[1:a]volume=1.5,loudnorm[aout]"
 
-    cmd = ["ffmpeg","-y"] + v_in + ai + [
-        "-filter_complex", f"[0:v]{v_filt},{','.join(draw_filters)}[vout];{final_a}",
+    cmd = ["ffmpeg", "-y"] + v_in + a_ins + [
+        "-filter_complex", f"{filter_complex};{a_mix}",
         "-map", "[vout]", "-map", "[aout]", "-t", str(duration),
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "output/final.mp4"
     ]
-    subprocess.run(cmd)
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"❌ FFMPEG ERROR: {result.stderr}")
 
+# 5. EXECUTE
 async def main():
-    if not check_system(): return
-    with open('config.json', 'r') as f: globals()['cfg'] = json.load(f)
+    start_time = time.time()
+    print("🚀 AGENT STARTING...")
     
-    data = await generate_viral_script()
-    duration = await generate_synced_audio(data['script'])
+    # Step 1: Script
+    data, cfg = await get_script()
     
-    print(f"🎬 Rendering Video...")
-    render_viral_video(data, duration)
+    # Step 2: Sync Audio
+    voice_file, duration = await get_audio(data['script'])
+    
+    # Step 3: Render
+    render_video(data, cfg, voice_file, duration)
     
     if os.path.exists("output/final.mp4"):
-        print("✅ SUCCESS: Perfectly Synced Video Generated.")
+        print(f"✅ SUCCESS: Video generated in {round(time.time()-start_time, 2)}s")
+    else:
+        print("❌ FAILED: Video not found in output folder.")
 
 if __name__ == "__main__":
     asyncio.run(main())
