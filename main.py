@@ -2,109 +2,88 @@ import os, json, random, asyncio, subprocess, re, requests, time
 import google.generativeai as genai
 from edge_tts import Communicate
 
-# 🔐 SECRETS
-GEMINI_KEY = os.getenv("GEMINI_API_KEY")
-INSTA_TOKEN = os.getenv("INSTA_ACCESS_TOKEN")
-INSTA_ID = os.getenv("INSTA_ACCOUNT_ID")
-
+K, T, I = os.getenv("GEMINI_API_KEY"), os.getenv("INSTA_ACCESS_TOKEN"), os.getenv("INSTA_ACCOUNT_ID")
 for f in ['assets', 'templates', 'output']: os.makedirs(f, exist_ok=True)
 
-# 1. ASSET AUDITOR (Checks everything before starting)
-def audit_assets():
-    print("\n🔍 --- ASSET AUDIT REPORT ---")
-    f_exists = os.path.exists("assets/font.ttf")
-    m_exists = os.path.exists("assets/music.mp3")
-    t_count = len([f for f in os.listdir('templates') if f.endswith('.mp4')])
-    
-    print(f"{'✅' if f_exists else '❌'} FONT: assets/font.ttf")
-    print(f"{'✅' if m_exists else '❌'} MUSIC: assets/music.mp3")
-    print(f"{'✅' if t_count > 0 else '❌'} TEMPLATES: {t_count} found")
-    print("----------------------------\n")
-    return t_count > 0
+def audit():
+    print("🔍 --- ASSET AUDIT ---")
+    f = os.path.exists("assets/font.ttf")
+    t = [f for f in os.listdir('templates') if f.endswith('.mp4')]
+    print(f"{'✅' if f else '❌'} Font: assets/font.ttf")
+    print(f"{'✅' if t else '❌'} Templates: {len(t)} found")
+    return len(t) > 0
 
-# 2. POWERFUL AI SCRIPT GENERATOR (Fixed 404 Error)
-async def generate_script():
-    print("🧠 AI: Generating unique Dark Psychology script...")
+async def get_s():
+    print("🧠 AI: Generating Script...")
     try:
         with open('config.json', 'r') as f: cfg = json.load(f)
-        genai.configure(api_key=GEMINI_KEY)
-        
-        # FIXED: Using the latest stable model identifier
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
-        
-        topic = random.choice(cfg['topics'])
-        prompt = f"""
-        Act as a Master of Dark Psychology. Write a 20-second viral Instagram Reel script about {topic}.
-        - Start with a massive hook (e.g., 'THE REASON THEY...', 'STOP BEING...').
-        - Use short, aggressive sentences (3-5 words max).
-        - No emojis. No hashtags in the script.
-        - Topic must be mysterious and slightly dangerous.
-        Return ONLY valid JSON: {{"script": "...", "caption": "...", "hashtags": "..."}}
-        """
-        
-        response = model.generate_content(prompt)
-        json_str = re.search(r'\{.*\}', response.text, re.DOTALL).group()
-        return json.loads(json_str), cfg
+        genai.configure(api_key=K)
+        # Use stable model name
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        p = f"Write a 20s dark psychology script about {random.choice(cfg['topics'])}. Hook, 3 short facts, loop ending. Return ONLY JSON: {{'script': '...', 'caption': '...', 'hashtags': '...'}}"
+        r = model.generate_content(p)
+        m = re.search(r'\{.*\}', r.text, re.DOTALL)
+        return json.loads(m.group()) if m else json.loads(r.text), cfg
     except Exception as e:
-        print(f"⚠️ AI FAIL ({e}): Using Fallback.")
-        return {
-            "script": "THE MOST DANGEROUS PERSON IS THE ONE WHO WATCHES EVERYTHING AND SAYS NOTHING. THEY ARE CALCULATING YOUR EVERY MOVE. AND THAT IS WHY...",
-            "caption": "Silence is power.",
-            "hashtags": "#darkpsychology"
-        }, {"power_words": ["dangerous", "calculating", "nothing"]}
+        print(f"⚠️ AI Fail: {e}")
+        return {"script": "THE MOST DANGEROUS PERSON WATCHES EVERYTHING. THEY ARE CALCULATING YOUR MOVE. THIS IS WHY..."}, {"power_words": ["dangerous"]}
 
-# 3. WORD-BY-WORD AUDIO SYNC ENGINE
-async def generate_audio(text):
-    print("🎙️ AUDIO: Generating micro-synced voiceover...")
-    voice = "en-US-ChristopherNeural"
-    communicate = Communicate(text, voice, rate="+15%", pitch="-5Hz")
-    
-    word_boundaries = []
-    audio_path = "assets/voice.mp3"
-    
-    with open(audio_path, "wb") as f:
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                f.write(chunk["data"])
-            elif chunk["type"] == "WordBoundary":
-                # Micro-sync timestamp collection
-                word_boundaries.append({
-                    "word": chunk["text"],
-                    "start": chunk["offset"] / 10**7,
-                    "end": (chunk["offset"] + chunk["duration"]) / 10**7
-                })
+async def get_a(text):
+    print("🎙️ AUDIO: Syncing Voice...")
+    p, b = "assets/voice.mp3", []
+    c = Communicate(text, "en-US-ChristopherNeural", rate="+15%", pitch="-5Hz")
+    with open(p, "wb") as f:
+        async for ck in c.stream():
+            if ck["type"] == "audio": f.write(ck["data"])
+            elif ck["type"] == "WordBoundary":
+                b.append({"w": ck["text"], "s": ck["offset"]/10**7, "e": (ck["offset"]+ck["duration"])/10**7})
+    with open("assets/subs.json", "w") as f: json.dump(b, f)
+    d = subprocess.run(["ffprobe","-v","0","-show_entries","format=duration","-of","compact=p=0:nk=1",p], capture_output=True, text=True).stdout
+    return p, float(d or 15.0)
 
-    with open("assets/subs.json", "w") as f: json.dump(word_boundaries, f)
-    res = subprocess.run(["ffprobe","-v","0","-show_entries","format=duration","-of","compact=p=0:nk=1",audio_path], capture_output=True, text=True)
-    return audio_path, float(res.stdout or 15.0)
-
-# 4. WORD-BY-WORD DYNAMIC RENDER (NO ZOOM)
-def render_video(data, cfg, voice_path, duration, has_template):
-    print(f"🎬 VIDEO: Rendering {duration}s Word-by-Word Reel...")
-    
-    if has_template:
-        t_file = random.choice([f for f in os.listdir('templates') if f.endswith('.mp4')])
-        v_in = ["-stream_loop", "-1", "-i", f"templates/{t_file}"]
-        v_base = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,vignette=PI/4"
+def render(data, cfg, vp, dur, ht):
+    print("🎬 VIDEO: Rendering Word-by-Word...")
+    if ht:
+        tm = random.choice([f for f in os.listdir('templates') if f.endswith('.mp4')])
+        vi = ["-stream_loop", "-1", "-i", f"templates/{tm}"]
+        vb = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,vignette=PI/4"
     else:
-        v_in = ["-f", "lavfi", "-i", "color=c=0x0a0a0a:s=1080x1920:d=1"]
-        v_base = "vignette=PI/3"
-
-    with open("assets/subs.json", "r") as f: word_data = json.load(f)
-    font = "assets/font.ttf"
-    f_arg = f"fontfile='{font}':" if os.path.exists(font) else ""
+        vi = ["-f", "lavfi", "-i", "color=c=0x0a0a0a:s=1080x1920:d=1"]
+        vb = "vignette=PI/3"
     
-    draw_filters = []
-    for item in word_data:
-        t_start = item["start"]
-        t_end = item["end"]
-        word = item["word"].upper().replace("'", "").replace(":", "")
-        
-        # Color trigger
-        color = "yellow" if any(pw.lower() in word.lower() for pw in cfg.get('power_words', [])) else "white"
-        if word == word_data[0]["word"].upper(): color = "red" # First word Red
+    with open("assets/subs.json", "r") as f: bd = json.load(f)
+    ft = "fontfile='assets/font.ttf':" if os.path.exists("assets/font.ttf") else ""
+    dfs = []
+    for i, item in enumerate(bd):
+        s, e, w = item["s"], item["e"], item["w"].upper().replace("'", "")
+        c = "yellow" if any(pw.lower() in w.lower() for pw in cfg.get('power_words', [])) else "white"
+        if i == 0: c = "red"
+        # Word-by-word POP animation
+        sz = f"if(lt(t,{s}),0,if(lt(t,{s}+0.05),150,130))"
+        # Shadow Layer
+        dfs.append(f"drawtext=text='{w}':{ft}fontcolor=black@0.8:fontsize='{sz}+10':x=(w-text_w)/2+5:y=(h-text_h)/2+5:enable='between(t,{s},{e})'")
+        # Main Layer
+        dfs.append(f"drawtext=text='{w}':{ft}fontcolor={c}:fontsize='{sz}':x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,{s},{e})'")
 
-        # DYNAMIC POP ANIMATION: Grows for first 0.05s then settles
+    ai = ["-i", vp]
+    mp = "assets/music.mp3"
+    if os.path.exists(mp):
+        ai += ["-i", mp]
+        am = "[1:a]volume=1.5[va];[2:a]volume=0.2[ma];[va][ma]amix=inputs=2:duration=first,loudnorm[aout]"
+    else: am = "[1:a]volume=1.5,loudnorm[aout]"
+
+    cmd = ["ffmpeg", "-y"] + vi + ai + ["-filter_complex", f"[0:v]{vb},{','.join(dfs)}[vout];{am}", "-map", "[vout]", "-map", "[aout]", "-t", str(dur), "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "output/final.mp4"]
+    subprocess.run(cmd)
+
+async def main():
+    ht = audit()
+    d, cfg = await get_s()
+    vp, dur = await get_a(d['script'])
+    render(d, cfg, vp, dur, ht)
+    if os.path.exists("output/final.mp4"): print("✅ DONE: Video Ready.")
+
+if __name__ == "__main__":
+    asyncio.run(main())        # DYNAMIC POP ANIMATION: Grows for first 0.05s then settles
         size = f"if(lt(t,{t_start}),0,if(lt(t,{t_start}+0.05),150,135))"
         
         # Shadow Layer + Main Word
