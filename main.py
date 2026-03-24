@@ -1,176 +1,67 @@
 import os, json, random, asyncio, subprocess, re, requests, time
 import google.generativeai as genai
 from edge_tts import Communicate
-
-# 🔐 Load Secrets
-GEMINI_KEY = os.getenv("GEMINI_API_KEY")
-INSTA_TOKEN = os.getenv("INSTA_ACCESS_TOKEN")
-INSTA_ID = os.getenv("INSTA_ACCOUNT_ID")
-
-# 📁 Ensure Folders exist
-for folder in ['assets', 'templates', 'output']:
-    os.makedirs(folder, exist_ok=True)
-
-# Load Config
-with open('config.json', 'r') as f:
-    config = json.load(f)
-
-genai.configure(api_key=GEMINI_KEY)
+K, T, I = os.getenv("GEMINI_API_KEY"), os.getenv("INSTA_ACCESS_TOKEN"), os.getenv("INSTA_ACCOUNT_ID")
+for f in ['assets', 'templates', 'output']: os.makedirs(f, exist_ok=True)
+with open('config.json', 'r') as f: cfg = json.load(f)
+genai.configure(api_key=K)
 model = genai.GenerativeModel('gemini-1.5-flash')
-
-async def generate_content():
-    topic = random.choice(config['topics'])
-    prompt = f"Create a 15s dark psychology script about {topic}. Return JSON: {{'script': '...', 'caption': '...', 'hashtags': '...'}}. Hook must be strong. US English."
+async def get_s():
+    topic = random.choice(cfg['topics'])
+    p = f"Create a 15s dark psychology script about {topic}. Return JSON: {{'script': '...', 'caption': '...', 'hashtags': '...'}}."
     try:
-        response = model.generate_content(prompt)
-        text = response.text
-        # Extract JSON from potential markdown code blocks
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
-        return json.loads(text)
-    except:
-        return {
-            "script": "The strongest people are usually the ones who stay silent. They observe everything while you notice nothing.",
-            "caption": "Silence is power. #darkpsychology",
-            "hashtags": "#mindset #manipulation"
-        }
-
-async def create_voice(text):
-    path = "assets/voice.mp3"
-    comm = Communicate(text, "en-US-GuyNeural", rate="+12%")
-    await comm.save(path)
-    res = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], capture_output=True, text=True)
-    return path, float(res.stdout or 15.0)
-
-def render_video(data, voice_path, duration):
-    # 1. Background Setup
-    templates = [f for f in os.listdir('templates') if f.endswith('.mp4')]
-    if templates:
-        v_in = ["-stream_loop", "-1", "-i", f"templates/{random.choice(templates)}"]
-        v_filt = "vignette=PI/4,zoompan=z='zoom+0.001':d=125:s=1080x1920"
-    else:
-        v_in = ["-f", "lavfi", "-i", "color=c=0x0a0a0a:s=1080x1920:d=1"]
-        v_filt = "vignette=PI/3"
-
-    # 2. Asset Checks
-    font = "assets/font.ttf"
-    f_path = f"fontfile='{font}':" if os.path.exists(font) else ""
-    m_path, s_path = "assets/music.mp3", "assets/sfx.mp3"
-    
-    # 3. Subtitle Generation (Safe Math)
-    words = re.findall(r"[\w']+", data['script'].upper())
-    t_per_w = duration / len(words)
-    draw_filters = []
-    for i, word in enumerate(words):
-        start = i * t_per_w
-        end = (i + 1) * t_per_w
-        color = "yellow" if word.lower() in config['power_words'] else "white"
-        if i == 0: color = "red"
-        
-        # Size formula: 0 until word starts, then pops and shrinks
-        size = f"if(lt(t,{start}),0,100+40*exp(-15*(t-{start})))"
-        
-        # Remove characters that break FFmpeg
-        clean_word = word.replace("'", "").replace(":", "").replace(",", "")
-        f = f"drawtext=text='{clean_word}':{f_path}fontcolor={color}:fontsize='{size}':borderw=4:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,{start},{end})'"
-        draw_filters.append(f)
-
-    # 4. Audio Inputs & Mixing
-    a_ins = ["-i", voice_path]
-    has_m = os.path.exists(m_path)
-    has_s = os.path.exists(s_path)
-    if has_m: a_ins += ["-i", m_path]
-    if has_s: a_ins += ["-i", s_path]
-
-    a_mix = "[1:a]volume=1.0[va]"
-    labels = ["[va]"]
-    if has_m:
-        a_mix += ";[2:a]volume=0.15[ma]"
-        labels.append("[ma]")
-    if has_s:
-        idx = 2 + int(has_m)
-        a_mix += f";[{idx}:a]volume=0.8[sa]"
-        labels.append("[sa]")
-    
-    if len(labels) > 1:
-        final_a = f"{a_mix};{''.join(labels)}amix=inputs={len(labels)}:duration=first[aout]"
-    else:
-        final_a = "[1:a]volume=1.0[aout]"
-
-    # 5. Execute Render
-    cmd = ["ffmpeg", "-y"] + v_in + a_ins + [
-        "-filter_complex", f"[0:v]{v_filt},{','.join(draw_filters)}[vout];{final_a}",
-        "-map", "[vout]", "-map", "[aout]", "-t", str(duration),
-        "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "output/final.mp4"
-    ]
+        r = model.generate_content(p)
+        m = re.search(r'\{.*\}', r.text, re.DOTALL)
+        return json.loads(m.group()) if m else json.loads(r.text)
+    except: return {"script": "Silence is the best answer to a fool.", "caption": "Silence.", "hashtags": "#psych"}
+async def get_v(text):
+    p = "assets/voice.mp3"
+    await Communicate(text, "en-US-GuyNeural", rate="+12%").save(p)
+    d = subprocess.run(["ffprobe","-v","0","-show_entries","format=duration","-of","compact=p=0:nk=1",p], capture_output=True, text=True).stdout
+    return p, float(d or 15.0)
+def render(data, vp, dur):
+    ts = [f for f in os.listdir('templates') if f.endswith('.mp4')]
+    vi = ["-stream_loop","-1","-i",f"templates/{random.choice(ts)}"] if ts else ["-f","lavfi","-i","color=c=0x0a0a0a:s=1080x1920:d=1"]
+    vf = "vignette=PI/4,zoompan=z='zoom+0.001':d=125:s=1080x1920" if ts else "vignette=PI/3"
+    ft = "assets/font.ttf"
+    fa = f"fontfile='{ft}':" if os.path.exists(ft) else ""
+    ws = re.findall(r"[\w']+", data['script'].upper())
+    tpw = dur / len(ws)
+    dfs = []
+    for i, w in enumerate(ws):
+        s, e = i*tpw, (i+1)*tpw
+        c = "yellow" if w.lower() in cfg['power_words'] else "white"
+        if i==0: c = "red"
+        sz = f"if(lt(t,{s}),0,100+40*exp(-15*(t-{s})))"
+        cw = w.replace("'","").replace(":","").replace(",","")
+        dfs.append(f"drawtext=text='{cw}':{fa}fontcolor={c}:fontsize='{sz}':borderw=4:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,{s},{e})'")
+    ai = ["-i", vp]
+    mp, sp = "assets/music.mp3", "assets/sfx.mp3"
+    hm, hs = os.path.exists(mp), os.path.exists(sp)
+    if hm: ai += ["-i", mp]
+    if hs: ai += ["-i", sp]
+    am = "[1:a]volume=1.0[va]"
+    ls = ["[va]"]
+    if hm: am += ";[2:a]volume=0.15[ma]"; ls.append("[ma]")
+    if hs: idx = 2+int(hm); am += f";[{idx}:a]volume=0.8[sa]"; ls.append("[sa]")
+    fa_str = f"{am};{''.join(ls)}amix=inputs={len(ls)}:duration=first[aout]" if len(ls)>1 else "[1:a]volume=1.0[aout]"
+    cmd = ["ffmpeg","-y"] + vi + ai + ["-filter_complex",f"[0:v]{vf},{','.join(dfs)}[vout];{fa_str}","-map","[vout]","-map","[aout]","-t",str(dur),"-c:v","libx264","-preset","superfast","-crf","22","output/final.mp4"]
     subprocess.run(cmd)
-
-def upload_logic(path, caption):
-    if not INSTA_TOKEN or not INSTA_ID or "YOUR" in INSTA_TOKEN:
-        print("💡 No API keys found. Download the video from GitHub Artifacts.")
-        return
+def up(path, cap):
+    if not T or not I: return
     try:
-        files = {'fileToUpload': open(path, 'rb')}
-        v_url = requests.post("https://catbox.moe/user/api.php", data={'reqtype': 'fileupload'}, files=files).text
-        r = requests.post(f"https://graph.facebook.com/v19.0/{INSTA_ID}/media", data={
-            'video_url': v_url, 'caption': caption, 'media_type': 'REELS', 'access_token': INSTA_TOKEN
-        }).json()
-        cid = r.get('id')
-        if cid:
-            print("⏳ Processing upload to Instagram...")
+        u = requests.post("https://catbox.moe/user/api.php",data={'reqtype':'fileupload'},files={'fileToUpload':open(path,'rb')}).text
+        r = requests.post(f"https://graph.facebook.com/v19.0/{I}/media",data={'video_url':u,'caption':cap,'media_type':'REELS','access_token':T}).json()
+        if 'id' in r:
             time.sleep(45)
-            requests.post(f"https://graph.facebook.com/v19.0/{INSTA_ID}/media_publish", data={'creation_id': cid, 'access_token': INSTA_TOKEN})
-            print("🚀 Posted successfully!")
-    except Exception as e:
-        print(f"❌ Upload failed: {e}")
-
+            requests.post(f"https://graph.facebook.com/v19.0/{I}/media_publish",data={'creation_id':r['id'],'access_token':T})
+    except: pass
 async def main():
-    print("🚀 Agent Starting...")
-    data = await generate_content()
-    v_path, duration = await create_voice(data['script'])
-    render_video(data, v_path, duration)
-    
+    d = await get_s()
+    vp, dur = await get_v(d['script'])
+    render(d, vp, dur)
     if os.path.exists("output/final.mp4"):
-        print("✅ Video Created Successfully.")
-        upload_logic("output/final.mp4", f"{data['caption']}\n\n{data['hashtags']}")
-    else:
-        print("❌ Video creation failed.")
-
-if __name__ == "__main__":
-    asyncio.run(main())    if os.path.exists("output/final.mp4"):
-        print("✅ Success! Video ready in output/final.mp4")
-    else:
-        print("❌ Video creation failed.")
-
-if __name__ == "__main__":
-    asyncio.run(main())        return
-    try:
-        files = {'fileToUpload': open(path, 'rb')}
-        v_url = requests.post("https://catbox.moe/user/api.php", data={'reqtype': 'fileupload'}, files=files).text
-        r = requests.post(f"https://graph.facebook.com/v19.0/{INSTA_ID}/media", data={
-            'video_url': v_url, 'caption': caption, 'media_type': 'REELS', 'access_token': INSTA_TOKEN
-        }).json()
-        cid = r.get('id')
-        if cid:
-            print("⏳ Processing upload...")
-            time.sleep(45)
-            requests.post(f"https://graph.facebook.com/v19.0/{INSTA_ID}/media_publish", data={'creation_id': cid, 'access_token': INSTA_TOKEN})
-            print("🚀 Posted!")
-    except Exception as e:
-        print(f"❌ Upload failed: {e}")
-
-async def main():
-    print("🚀 Agent Starting...")
-    data = await generate_content()
-    voice_path, duration = await create_voice(data['script'])
-    render_video(data, voice_path, duration)
-    
-    if os.path.exists("output/final.mp4"):
-        print("✅ Video Created Successfully.")
-        upload_logic("output/final.mp4", f"{data['caption']}\n\n{data['hashtags']}")
-    else:
-        print("❌ Video creation failed.")
-
+        print("✅ SUCCESS")
+        up("output/final.mp4", f"{d['caption']}\n\n{d['hashtags']}")
 if __name__ == "__main__":
     asyncio.run(main())
