@@ -2,95 +2,121 @@ import os, json, random, asyncio, subprocess, re, requests, time
 import google.generativeai as genai
 from edge_tts import Communicate
 
-# 🔐 API Setup
+# 1. SETUP & SYSTEM AUDITOR
 K, T, I = os.getenv("GEMINI_API_KEY"), os.getenv("INSTA_ACCESS_TOKEN"), os.getenv("INSTA_ACCOUNT_ID")
-for f in ['assets', 'templates', 'output']: os.makedirs(f, exist_ok=True)
+for folder in ['assets', 'templates', 'output']: os.makedirs(folder, exist_ok=True)
+
+def audit_system():
+    print("🔍 --- SYSTEM HEALTH CHECK ---")
+    checks = {
+        "Font": "assets/font.ttf",
+        "Music": "assets/music.mp3",
+        "SFX": "assets/sfx.mp3",
+        "Templates": "templates/"
+    }
+    for name, path in checks.items():
+        if name == "Templates":
+            count = len([f for f in os.listdir(path) if f.endswith('.mp4')])
+            print(f"{'✅' if count > 0 else '❌'} {name}: {count} videos found.")
+        else:
+            print(f"{'✅' if os.path.exists(path) else '❌'} {name}: {'Found' if os.path.exists(path) else 'MISSING'}")
+    print("------------------------------\n")
+
 with open('config.json', 'r') as f: cfg = json.load(f)
 genai.configure(api_key=K)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-async def get_s():
+# 2. VIRAL SCRIPT GENERATION (20-25 Seconds)
+async def get_script():
     topic = random.choice(cfg['topics'])
-    # Precise prompt for a 12-second high-retention loop
-    p = f"Write a 12-second dark psychology script about {topic}. Start with a massive hook like 'IF THEY DO THIS...' or 'NEVER TRUST...'. 3 short lines total. The last word must loop perfectly to the first word. Return ONLY JSON: {{'script': '...', 'caption': '...', 'hashtags': '...'}}."
+    prompt = f"""
+    Create a 25-second dark psychology script about {topic}. 
+    Structure:
+    1. Hook: A 'Red Pill' shock statement.
+    2. Body: 3 deep, mysterious psychological facts.
+    3. Loop: End the script with 'THIS IS WHY...' so it loops back to the start.
+    Return JSON: {{'script': '...', 'caption': '...', 'hashtags': '...'}}
+    """
     try:
-        r = model.generate_content(p)
+        r = model.generate_content(prompt)
         m = re.search(r'\{.*\}', r.text, re.DOTALL)
         return json.loads(m.group())
-    except: return {"script": "NEVER REVEAL EVERYTHING. PEOPLE WILL USE YOUR TRUTH TO DESTROY YOUR", "caption": "The power of silence.", "hashtags": "#psychology"}
+    except:
+        return {"script": "THE MOST DANGEROUS PERSON IS THE ONE WHO WATCHES EVERYTHING AND SAYS NOTHING. THEY ARE NOT WEAK. THEY ARE CALCULATING EVERY SINGLE MOVE YOU MAKE. THIS IS WHY...", "caption": "Watch the quiet ones.", "hashtags": "#psychology"}
 
-async def get_v(text):
+# 3. VOICE GENERATION (Deep & Authoritative)
+async def get_voice(text):
     p = "assets/voice.mp3"
-    await Communicate(text, "en-US-GuyNeural", rate="+15%", pitch="-5Hz").save(p)
+    # Using 'Christopher' for a deeper, more 'Documentary/Dark' feel
+    comm = Communicate(text, "en-US-ChristopherNeural", rate="+5%", pitch="-10Hz")
+    await comm.save(p)
     d = subprocess.run(["ffprobe","-v","0","-show_entries","format=duration","-of","compact=p=0:nk=1",p], capture_output=True, text=True).stdout
-    return p, float(d or 12.0)
+    return p, float(d or 20.0)
 
-def render(data, vp, dur):
+# 4. DYNAMIC VIDEO RENDERING
+def render_video(data, vp, dur):
+    # Background Logic
     ts = [f for f in os.listdir('templates') if f.endswith('.mp4')]
-    # 🎥 High-End Background Logic
     if ts:
         vi = ["-stream_loop","-1","-i",f"templates/{random.choice(ts)}"]
         vf = "vignette=PI/4,zoompan=z='zoom+0.001':d=125:s=1080x1920"
     else:
-        # If no video, create a 'Hypnotic Dark Mist' background using math
-        vi = ["-f","lavfi","-i","nullsrc=s=1080x1920:d=1"]
-        vf = "geq=lum='10+10*sin(X/20+T)*sin(Y/20+T)':cb=128:cr=128,vignette=PI/3"
+        # Generate a high-quality "Dark Moving Space" if no templates
+        vi = ["-f","lavfi","-i","cellauto=s=1080x1920:rate=10"]
+        vf = "hue=s=0,vignette=PI/3,curve=preset=darker"
 
-    ft = "assets/font.ttf"
-    fa = f"fontfile='{ft}':" if os.path.exists(ft) else ""
+    font = "assets/font.ttf"
+    f_arg = f"fontfile='{font}':" if os.path.exists(font) else ""
     
-    # ✍️ Advanced Subtitle Logic (Big, Bold, Glow)
-    ws = re.findall(r"[\w']+", data['script'].upper())
-    tpw = dur / len(ws)
-    dfs = []
-    for i, w in enumerate(ws):
-        s, e = i*tpw, (i+1)*tpw
-        c = "yellow" if w.lower() in cfg['power_words'] else "white"
-        if i == 0: c = "red" # Hook is Red
+    # Phrase-Based Sync (Groups of 2 words for better readability)
+    words = re.findall(r"[\w']+", data['script'].upper())
+    phrases = [" ".join(words[i:i+2]) for i in range(0, len(words), 2)]
+    t_per_p = dur / len(phrases)
+    
+    draw_filters = []
+    for i, p in enumerate(phrases):
+        s, e = i*t_per_p, (i+1)*t_per_p
+        color = "yellow" if any(pw.upper() in p for pw in cfg['power_words']) else "white"
+        # Dynamic "Pop" size: starts big, settles down
+        size = f"if(lt(t,{s}),0,140+60*exp(-10*(t-{s})))"
+        clean_p = p.replace("'","").replace(":","")
         
-        # Pop Animation Math
-        sz = f"if(lt(t,{s}),0,130+50*exp(-18*(t-{s})))"
-        cw = w.replace("'","").replace(":","")
-        
-        # Stacked Drawtext: 1. Shadow, 2. Main Text (Creates a "Glow/High Contrast" look)
-        dfs.append(f"drawtext=text='{cw}':{fa}fontcolor=black:fontsize='{sz}+4':x=(w-text_w)/2+4:y=(h-text_h)/2+4:enable='between(t,{s},{e})'")
-        dfs.append(f"drawtext=text='{cw}':{fa}fontcolor={c}:fontsize='{sz}':x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,{s},{e})'")
+        # Glow Effect (Layered Text)
+        draw_filters.append(f"drawtext=text='{clean_p}':{f_arg}fontcolor=black@0.5:fontsize='{size}':borderw=10:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2+5:enable='between(t,{s},{e})'")
+        draw_filters.append(f"drawtext=text='{clean_p}':{f_arg}fontcolor={color}:fontsize='{size}':x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,{s},{e})'")
 
+    # Audio Layering
     ai = ["-i", vp]
     mp, sp = "assets/music.mp3", "assets/sfx.mp3"
     hm, hs = os.path.exists(mp), os.path.exists(sp)
     if hm: ai += ["-i", mp]
     if hs: ai += ["-i", sp]
     
-    # 🔊 Professional Audio Mix
-    am = "[1:a]volume=1.2[va]" # Voice boosted
+    am = "[1:a]volume=1.5[va]" # Boost voice
     ls = ["[va]"]
     if hm: am += ";[2:a]volume=0.2[ma]"; ls.append("[ma]")
-    if hs: idx = 2+int(hm); am += f";[{idx}:a]volume=0.9[sa]"; ls.append("[sa]")
+    if hs: idx = 2+int(hm); am += f";[{idx}:a]volume=0.5[sa]"; ls.append("[sa]")
     
-    fa_str = f"{am};{''.join(ls)}amix=inputs={len(ls)}:duration=first,compressor=threshold=-20dB:ratio=4[aout]" if len(ls)>1 else "[1:a]volume=1.2[aout]"
+    fa_str = f"{am};{''.join(ls)}amix=inputs={len(ls)}:duration=first[aout]" if len(ls)>1 else "[1:a]volume=1.0[aout]"
 
-    cmd = ["ffmpeg","-y"] + vi + ai + ["-filter_complex",f"[0:v]{vf},{','.join(dfs)}[vout];{fa_str}","-map","[vout]","-map","[aout]","-t",str(dur),"-c:v","libx264","-preset","superfast","-crf","20","output/final.mp4"]
+    cmd = ["ffmpeg","-y"] + vi + ai + [
+        "-filter_complex", f"[0:v]{vf},{','.join(draw_filters)}[vout];{fa_str}",
+        "-map", "[vout]", "-map", "[aout]", "-t", str(dur),
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "output/final.mp4"
+    ]
     subprocess.run(cmd)
 
-def up(path, cap):
-    if not T or not I: return
-    try:
-        u = requests.post("https://catbox.moe/user/api.php",data={'reqtype':'fileupload'},files={'fileToUpload':open(path,'rb')}).text
-        r = requests.post(f"https://graph.facebook.com/v19.0/{I}/media",data={'video_url':u,'caption':cap,'media_type':'REELS','access_token':T}).json()
-        if 'id' in r:
-            time.sleep(40)
-            requests.post(f"https://graph.facebook.com/v19.0/{I}/media_publish",data={'creation_id':r['id'],'access_token':T})
-    except: pass
-
 async def main():
-    print("🔥 Generating Viral Content...")
-    d = await get_s()
-    vp, dur = await get_v(d['script'])
-    render(d, vp, dur)
+    audit_system()
+    print("🔥 STEP 1: Scripting...")
+    d = await get_script()
+    print(f"🎙️ STEP 2: Voiceover ({len(d['script'])} chars)...")
+    vp, dur = await get_voice(d['script'])
+    print(f"🎬 STEP 3: Rendering {dur}s video...")
+    render_video(d, vp, dur)
     if os.path.exists("output/final.mp4"):
-        print("✅ VIDEO READY")
-        up("output/final.mp4", f"{d['caption']}\n\n{d['hashtags']}")
+        print(f"✅ DONE: final.mp4 generated ({round(dur, 2)}s)")
+        # Add your upload_to_insta logic here if keys are ready
 
 if __name__ == "__main__":
     asyncio.run(main())
