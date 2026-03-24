@@ -16,12 +16,16 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # FIXED: Using a modern supported version
+          python-version: '3.12' # Using latest stable Python
 
       - name: Install Tools
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
+          pip install --upgrade pip
           pip install google-generativeai edge-tts requests
+
+      - name: Verify Assets
+        run: ls -R # This shows in the logs if your files are actually there
 
       - name: Run AI Agent
         env:
@@ -35,3 +39,4 @@ jobs:
         with:
           name: Dark_Reel_${{ github.run_id }}
           path: output/final.mp4
+          retention-days: 5          path: output/final.mp4
