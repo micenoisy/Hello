@@ -111,6 +111,13 @@ async def main():
         print(f"✅ SUCCESS: Perfectly synced Reel ready.")
 
 if __name__ == "__main__":
+    asyncio.run(main())    d, cfg = await get_script()
+    vp, dur = await process_audio(d['script'])
+    render(d, cfg, vp, dur, ts)
+    if os.path.exists("output/final.mp4"): 
+        print(f"✅ SUCCESS: Perfectly synced Reel ready.")
+
+if __name__ == "__main__":
     asyncio.run(main())    am = "[1:a]volume=1.8,loudnorm[aout]"
 
     cmd = ["ffmpeg", "-y"] + vi + ai + ["-filter_complex", f"{v_filt};{am}", "-map", "[vout]", "-map", "[aout]", "-t", str(dur), "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "output/final.mp4"]
