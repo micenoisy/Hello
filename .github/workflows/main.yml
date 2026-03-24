@@ -16,17 +16,18 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.10'
 
       - name: Install Tools
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
           pip install --upgrade pip
-          pip install google-genai edge-tts requests
+          pip install edge-tts requests openai-whisper torch
+          # We don't need the google library anymore since we use OpenRouter
 
       - name: Run AI Agent
         env:
-          GOOGLE_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           INSTA_ACCESS_TOKEN: ${{ secrets.INSTA_ACCESS_TOKEN }}
           INSTA_ACCOUNT_ID: ${{ secrets.INSTA_ACCOUNT_ID }}
         run: python main.py
