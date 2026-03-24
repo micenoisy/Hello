@@ -2,7 +2,7 @@ import os, json, random, asyncio, subprocess, re, requests, time
 import whisper
 from edge_tts import Communicate
 
-# [1] SECRETS & PATHS
+# [1] SECRETS & SETUP
 OR_KEY = os.getenv("OPENROUTER_API_KEY")
 for f in ['assets', 'templates', 'output']: os.makedirs(f, exist_ok=True)
 
@@ -13,26 +13,20 @@ def audit():
     print(f"Font: {'✅' if f_ok else '❌'} | Templates: {len(ts)}")
     return ts
 
-# [2] TOP-TIER AI: LLAMA 3.1 8B (Most Reliable Free Model)
+# [2] POWERFUL AI ENGINE: LLAMA 3.3 70B (Free)
 async def get_script():
-    print("🧠 AI: Generating High-End Script...")
+    print("🧠 AI: Generating High-End Script (Llama 3.3 70B)...")
     try:
         with open('config.json', 'r') as f: cfg = json.load(f)
         topic = random.choice(cfg['topics'])
-        
-        # Using Llama 3.1 8B for better JSON reliability
         res = requests.post(
             url="https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OR_KEY}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://github.com", # Required by some OpenRouter models
-            },
+            headers={"Authorization": f"Bearer {OR_KEY}", "Content-Type": "application/json"},
             data=json.dumps({
-                "model": "meta-llama/llama-3.1-8b-instruct:free",
+                "model": "meta-llama/llama-3.3-70b-instruct:free",
                 "messages": [{
                     "role": "user", 
-                    "content": f"Write a 15-20s dark psychology script about {topic}. Aggressive hook. Use periods and commas. Return ONLY JSON: {{'script': '...', 'caption': '...', 'hashtags': '...'}}"
+                    "content": f"Write a 15-18s dark psychology script about {topic}. Aggressive hook. Use punctuation (commas, periods) for natural pauses. The last word must loop to the first word. Return ONLY JSON: {{'script': '...', 'caption': '...', 'hashtags': '...'}}"
                 }]
             })
         )
@@ -41,28 +35,21 @@ async def get_script():
         return json.loads(m.group()), cfg
     except Exception as e:
         print(f"⚠️ AI FAIL ({e}): Using Fallback.")
-        return {"script": "THE MOST DANGEROUS PERSON WATCHES EVERYTHING, THEY KNOW YOUR MOVE, THIS IS WHY YOU NEVER REVEAL THE TRUTH."}, {"red_words": ["never", "dangerous", "truth"], "yellow_words": ["everything", "move"]}
+        return {"script": "NEVER REVEAL THE TRUTH. THE MOST DANGEROUS PERSON WATCHES EVERYTHING. THEY KNOW YOUR NEXT MOVE. AND THAT IS WHY YOU..."}, {"red_words": ["never", "dangerous", "truth"], "yellow_words": ["everything", "move"]}
 
-# [3] NATURAL AUDIO: VOICE -> GENTLE EDGE-TRIM -> WHISPER SYNC
+# [3] NATURAL AUDIO: VOICE -> WHISPER SYNC
 async def process_audio(text):
-    print("🎙️ AUDIO: Generating Christopher Voice...")
-    raw_p, clean_p = "assets/raw.mp3", "assets/voice.mp3"
+    print("🎙️ AUDIO: Generating Natural Human Voiceover...")
+    voice_p = "assets/voice.mp3"
     
-    # Christopher Settings: Deep, Natural, Authoritative
-    c = Communicate(text, "en-US-ChristopherNeural", rate="+5%", pitch="-10Hz")
-    await c.save(raw_p)
+    # Christopher Settings: Professional, Deep, Authoritative
+    c = Communicate(text, "en-US-ChristopherNeural", rate="+8%", pitch="-10Hz")
+    await c.save(voice_p)
     
-    # GENTLE EDGE TRIMMING (Keeps Punctuation Pauses)
-    subprocess.run([
-        "ffmpeg", "-y", "-i", raw_p, 
-        "-af", "silenceremove=start_periods=1:start_threshold=-50dB:stop_periods=1:stop_threshold=-50dB", 
-        clean_p
-    ], capture_output=True)
-    
-    # WHISPER MICRO-SYNC
-    print("👂 WHISPER: Transcribing for Micro-Sync...")
+    # WHISPER MICRO-SYNC (Transcribes the natural rhythm)
+    print("👂 WHISPER: Transcribing natural audio for perfect sync...")
     model = whisper.load_model("tiny")
-    result = model.transcribe(clean_p, word_timestamps=True)
+    result = model.transcribe(voice_p, word_timestamps=True)
     
     word_data = []
     for seg in result['segments']:
@@ -70,9 +57,9 @@ async def process_audio(text):
             word_data.append({"w": w['word'].strip().upper(), "s": w['start'], "e": w['end']})
     
     with open("assets/subs.json", "w") as f: json.dump(word_data, f)
-    return clean_p, result['segments'][-1]['end']
+    return voice_p, result['segments'][-1]['end']
 
-# [4] SLEEK SUBTITLE RENDER (POSITION FIXED)
+# [4] SLEEK SUBTITLE RENDER (STUDIO AUDIO FILTER)
 def render(data, cfg, vp, dur, ts):
     print(f"🎬 VIDEO: Rendering Pro Reel ({round(dur, 2)}s)...")
     v_in = ["-stream_loop", "-1", "-i", f"templates/{random.choice(ts)}"] if ts else ["-f", "lavfi", "-i", "color=c=0x0a0a0a:s=1080x1920:d=1"]
@@ -82,29 +69,47 @@ def render(data, cfg, vp, dur, ts):
     font = f"fontfile='assets/font.ttf':" if os.path.exists("assets/font.ttf") else ""
     draw = []
     
-    # ✅ POSITION FIXED: Moved to Lower-Third (75% of screen height) 
-    # This prevents overlapping with your flame logo.
-    pos_y = "(h*0.75)"
+    # Position: Lower-Middle (Golden Zone)
+    pos_y = "(h*0.65)"
     
     for it in bd:
-        s, e, w = it["s"], it["e"], it["w"].upper().replace("'", "").replace(".", "").replace(",", "")
-        
-        # Color Engine
+        s, e, w = it["s"], it["e"], it["w"].replace("'", "").replace(".", "")
         cl = "white"
         if w.lower() in cfg.get('yellow_words', []): cl = "yellow"
         if w.lower() in cfg.get('red_words', []): cl = "red"
+        sz = f"if(lt(t,{s}),0,if(lt(t,{s}+0.05),140,120))"
         
-        # SLEEK POP ANIMATION (Faster snap)
-        sz = f"if(lt(t,{s}),0,if(lt(t,{s}+0.04),150,125))"
-        
-        # PRO STACKED SUBTITLES
-        # Layer 1: Extra Thick Black Stroke for 3D depth
-        draw.append(f"drawtext=text='{w}':{font}fontcolor=black@0.9:fontsize='{sz}+15':borderw=12:bordercolor=black:x=(w-text_w)/2:y={pos_y}:enable='between(t,{s},{e})'")
-        # Layer 2: Main Styled Text
+        # PRO SUBTITLE LAYERS (Stacked Glow)
+        draw.append(f"drawtext=text='{w}':{font}fontcolor=black@0.9:fontsize='{sz}+12':borderw=10:bordercolor=black:x=(w-text_w)/2:y={pos_y}:enable='between(t,{s},{e})'")
         draw.append(f"drawtext=text='{w}':{font}fontcolor={cl}:fontsize='{sz}':x=(w-text_w)/2:y={pos_y}:enable='between(t,{s},{e})'")
 
     v_filt = f"[0:v]{v_base}"
     if draw: v_filt += "," + ",".join(draw)
+    v_filt += "[vout]"
+
+    # [STUDIO MIC FILTER]: 
+    # highpass=f=100 (Removes low hum) 
+    # bass=g=5 (Adds warmth/depth)
+    # loudnorm (Ensures professional volume)
+    studio_af = "highpass=f=100,bass=g=5,volume=1.8,loudnorm"
+
+    cmd = ["ffmpeg", "-y"] + v_in + ["-i", vp] + [
+        "-filter_complex", f"{v_filt};[1:a]{studio_af}[aout]",
+        "-map", "[vout]", "-map", "[aout]", "-t", str(dur),
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "output/final.mp4"
+    ]
+    subprocess.run(cmd)
+
+async def main():
+    ts = audit()
+    d, cfg = await get_script()
+    vp, dur = await process_audio(d['script'])
+    render(d, cfg, vp, dur, ts)
+    if os.path.exists("output/final.mp4"): 
+        print(f"✅ SUCCESS: Studio Reel Ready ({round(dur, 2)}s)")
+
+if __name__ == "__main__":
+    asyncio.run(main())    if draw: v_filt += "," + ",".join(draw)
     v_filt += "[vout]"
 
     cmd = ["ffmpeg", "-y"] + v_in + ["-i", vp] + [
