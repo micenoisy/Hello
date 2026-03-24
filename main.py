@@ -13,22 +13,26 @@ def audit():
     print(f"Font: {'✅' if f_ok else '❌'} | Templates: {len(ts)}")
     return ts
 
-# [2] TOP-TIER AI: LLAMA 3.3 70B (Free)
+# [2] TOP-TIER AI: LLAMA 3.1 8B (Most Reliable Free Model)
 async def get_script():
-    print("🧠 AI: Generating High-End Script (Llama 3.3 70B)...")
+    print("🧠 AI: Generating High-End Script...")
     try:
         with open('config.json', 'r') as f: cfg = json.load(f)
         topic = random.choice(cfg['topics'])
         
-        # Meta Llama 3.3 70B Instruct (Free)
+        # Using Llama 3.1 8B for better JSON reliability
         res = requests.post(
             url="https://openrouter.ai/api/v1/chat/completions",
-            headers={"Authorization": f"Bearer {OR_KEY}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {OR_KEY}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://github.com", # Required by some OpenRouter models
+            },
             data=json.dumps({
-                "model": "meta-llama/llama-3.3-70b-instruct:free",
+                "model": "meta-llama/llama-3.1-8b-instruct:free",
                 "messages": [{
                     "role": "user", 
-                    "content": f"Write a 15-20s dark psychology script about {topic}. Aggressive hook. Use periods and commas for natural pauses. The last word must loop to the first word. Return ONLY JSON: {{'script': '...', 'caption': '...', 'hashtags': '...'}}"
+                    "content": f"Write a 15-20s dark psychology script about {topic}. Aggressive hook. Use periods and commas. Return ONLY JSON: {{'script': '...', 'caption': '...', 'hashtags': '...'}}"
                 }]
             })
         )
@@ -37,27 +41,26 @@ async def get_script():
         return json.loads(m.group()), cfg
     except Exception as e:
         print(f"⚠️ AI FAIL ({e}): Using Fallback.")
-        return {"script": "THE MOST DANGEROUS PERSON WATCHES EVERYTHING. THEY KNOW YOUR MOVE. THIS IS WHY YOU NEVER REVEAL THE TRUTH."}, {"red_words": ["never", "dangerous", "truth"], "yellow_words": ["everything", "move"]}
+        return {"script": "THE MOST DANGEROUS PERSON WATCHES EVERYTHING, THEY KNOW YOUR MOVE, THIS IS WHY YOU NEVER REVEAL THE TRUTH."}, {"red_words": ["never", "dangerous", "truth"], "yellow_words": ["everything", "move"]}
 
 # [3] NATURAL AUDIO: VOICE -> GENTLE EDGE-TRIM -> WHISPER SYNC
 async def process_audio(text):
-    print("🎙️ AUDIO: Generating Natural Christopher Voice...")
+    print("🎙️ AUDIO: Generating Christopher Voice...")
     raw_p, clean_p = "assets/raw.mp3", "assets/voice.mp3"
     
-    # Natural Settings: +5% speed is perfect for human-like urgency
+    # Christopher Settings: Deep, Natural, Authoritative
     c = Communicate(text, "en-US-ChristopherNeural", rate="+5%", pitch="-10Hz")
     await c.save(raw_p)
     
-    # GENTLE EDGE TRIMMING (Trims leading/trailing silence only)
-    # This keeps the human rhythm of punctuation (commas/periods) intact
+    # GENTLE EDGE TRIMMING (Keeps Punctuation Pauses)
     subprocess.run([
         "ffmpeg", "-y", "-i", raw_p, 
         "-af", "silenceremove=start_periods=1:start_threshold=-50dB:stop_periods=1:stop_threshold=-50dB", 
         clean_p
     ], capture_output=True)
     
-    # WHISPER MICRO-SYNC (Transcribes final audio for 100% precision)
-    print("👂 WHISPER: Transcribing final audio for perfect sync...")
+    # WHISPER MICRO-SYNC
+    print("👂 WHISPER: Transcribing for Micro-Sync...")
     model = whisper.load_model("tiny")
     result = model.transcribe(clean_p, word_timestamps=True)
     
@@ -69,7 +72,7 @@ async def process_audio(text):
     with open("assets/subs.json", "w") as f: json.dump(word_data, f)
     return clean_p, result['segments'][-1]['end']
 
-# [4] SLEEK SUBTITLE RENDER (Refined Size & Position)
+# [4] SLEEK SUBTITLE RENDER (POSITION FIXED)
 def render(data, cfg, vp, dur, ts):
     print(f"🎬 VIDEO: Rendering Pro Reel ({round(dur, 2)}s)...")
     v_in = ["-stream_loop", "-1", "-i", f"templates/{random.choice(ts)}"] if ts else ["-f", "lavfi", "-i", "color=c=0x0a0a0a:s=1080x1920:d=1"]
@@ -79,8 +82,9 @@ def render(data, cfg, vp, dur, ts):
     font = f"fontfile='assets/font.ttf':" if os.path.exists("assets/font.ttf") else ""
     draw = []
     
-    # Position: Lower-Middle (65% height)
-    pos_y = "(h*0.65)"
+    # ✅ POSITION FIXED: Moved to Lower-Third (75% of screen height) 
+    # This prevents overlapping with your flame logo.
+    pos_y = "(h*0.75)"
     
     for it in bd:
         s, e, w = it["s"], it["e"], it["w"].upper().replace("'", "").replace(".", "").replace(",", "")
@@ -90,12 +94,12 @@ def render(data, cfg, vp, dur, ts):
         if w.lower() in cfg.get('yellow_words', []): cl = "yellow"
         if w.lower() in cfg.get('red_words', []): cl = "red"
         
-        # SLEEK FONT SIZE (Hormozi Snap: 140 -> 120)
-        sz = f"if(lt(t,{s}),0,if(lt(t,{s}+0.05),140,120))"
+        # SLEEK POP ANIMATION (Faster snap)
+        sz = f"if(lt(t,{s}),0,if(lt(t,{s}+0.04),150,125))"
         
-        # PRO STACKED SUBTITLES (Black Glow + Styled Text)
-        # Layer 1: Thick Black Shadow Stroke
-        draw.append(f"drawtext=text='{w}':{font}fontcolor=black@0.9:fontsize='{sz}+12':borderw=10:bordercolor=black:x=(w-text_w)/2:y={pos_y}:enable='between(t,{s},{e})'")
+        # PRO STACKED SUBTITLES
+        # Layer 1: Extra Thick Black Stroke for 3D depth
+        draw.append(f"drawtext=text='{w}':{font}fontcolor=black@0.9:fontsize='{sz}+15':borderw=12:bordercolor=black:x=(w-text_w)/2:y={pos_y}:enable='between(t,{s},{e})'")
         # Layer 2: Main Styled Text
         draw.append(f"drawtext=text='{w}':{font}fontcolor={cl}:fontsize='{sz}':x=(w-text_w)/2:y={pos_y}:enable='between(t,{s},{e})'")
 
@@ -116,7 +120,7 @@ async def main():
     vp, dur = await process_audio(d['script'])
     render(d, cfg, vp, dur, ts)
     if os.path.exists("output/final.mp4"): 
-        print(f"✅ SUCCESS: Natural Rhythm Reel Ready ({round(dur, 2)}s)")
+        print(f"✅ SUCCESS: Subtitles Moved & Synced.")
 
 if __name__ == "__main__":
     asyncio.run(main())
