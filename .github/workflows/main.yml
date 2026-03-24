@@ -1,22 +1,22 @@
 name: Dark Psychology Automator
 on:
   schedule:
-    - cron: '0 13 * * *' # 9 AM EST
-    - cron: '0 19 * * *' # 3 PM EST
-    - cron: '0 0 * * *'  # 8 PM EST
-  workflow_dispatch:      # Manual Trigger Button (Run Workflow)
+    - cron: '0 13 * * *'
+    - cron: '0 19 * * *'
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4 # Updated to v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v5 # Updated to v5
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.11' # FIXED: Using a modern supported version
 
       - name: Install Tools
         run: |
@@ -31,8 +31,7 @@ jobs:
         run: python main.py
 
       - name: Download Video
-        uses: actions/upload-artifact@v4 # FIXED: Changed v3 to v4
+        uses: actions/upload-artifact@v4
         with:
           name: Dark_Reel_${{ github.run_id }}
           path: output/final.mp4
-          retention-days: 5
