@@ -7,7 +7,6 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 INSTA_TOKEN = os.getenv("INSTA_ACCESS_TOKEN")
 INSTA_ID = os.getenv("INSTA_ACCOUNT_ID")
 
-# 📁 Ensure Folders exist
 for folder in ['assets', 'templates', 'output']:
     os.makedirs(folder, exist_ok=True)
 
@@ -24,11 +23,7 @@ async def generate_content():
         response = model.generate_content(prompt)
         return json.loads(re.search(r'\{.*\}', response.text, re.DOTALL).group())
     except:
-        return {
-            "script": "The most dangerous person is the one who listens, observes, and says nothing. They already know your next move.",
-            "caption": "Silence is power. #psychology",
-            "hashtags": "#darkpsychology"
-        }
+        return {"script": "The strongest people are usually the ones who stay silent.", "caption": "Silence is power.", "hashtags": "#darkpsychology"}
 
 async def create_voice(text):
     path = "assets/voice.mp3"
@@ -38,73 +33,84 @@ async def create_voice(text):
     return path, float(res.stdout or 15.0)
 
 def render_video(data, voice_path, duration):
-    # 1. Background Setup
-    templates = [f"templates/{f}" for f in os.listdir('templates') if f.endswith('.mp4')]
+    # 1. Background
+    templates = [f for f in os.listdir('templates') if f.endswith('.mp4')]
     if templates:
-        video_input = ["-stream_loop", "-1", "-i", f"templates/{random.choice(os.listdir('templates'))}"]
-        v_base_filter = "vignette=PI/4,zoompan=z='zoom+0.001':d=125:s=1080x1920"
+        v_in = ["-stream_loop", "-1", "-i", f"templates/{random.choice(templates)}"]
+        v_filt = "vignette=PI/4,zoompan=z='zoom+0.001':d=125:s=1080x1920"
     else:
-        video_input = ["-f", "lavfi", "-i", "color=c=0x0a0a0a:s=1080x1920:d=1"]
-        v_base_filter = "noise=alls=5:allf=t+u,vignette=PI/3"
+        v_in = ["-f", "lavfi", "-i", "color=c=0x0a0a0a:s=1080x1920:d=1"]
+        v_filt = "vignette=PI/3"
 
-    # 2. Asset Checks
+    # 2. Assets
     font = "assets/font.ttf"
-    f_arg = f"fontfile='{font}':" if os.path.exists(font) else ""
+    f_path = f"fontfile='{font}':" if os.path.exists(font) else ""
     m_path, s_path = "assets/music.mp3", "assets/sfx.mp3"
-    has_m, has_s = os.path.exists(m_path), os.path.exists(s_path)
-
-    # 3. Subtitles (The POP effect)
+    
+    # 3. Subtitles (FIXED MATH)
     words = re.findall(r"[\w']+", data['script'].upper())
     t_per_w = duration / len(words)
     draw_filters = []
     for i, word in enumerate(words):
-        start, end = i * t_per_w, (i + 1) * t_per_w
+        start = i * t_per_w
+        end = (i + 1) * t_per_w
         color = "yellow" if word.lower() in config['power_words'] else "white"
         if i == 0: color = "red"
-        pop = f"120+40*exp(-20*(t-{start}))"
-        f = f"drawtext=text='{word}':{f_arg}fontcolor={color}:fontsize='{pop}':borderw=4:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,{start},{end})'"
+        
+        # Fixed formula to prevent "fontsize overflow"
+        # We use max(0, t-start) so the exponent never goes positive/huge
+        size = f"if(lt(t,{start}),0,100+40*exp(-15*(t-{start})))"
+        
+        # Clean text for FFmpeg
+        clean_word = word.replace("'", "").replace(":", "")
+        f = f"drawtext=text='{clean_word}':{f_path}fontcolor={color}:fontsize='{size}':borderw=4:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,{start},{end})'"
         draw_filters.append(f)
 
-    # 4. Audio Inputs & Mixing
-    audio_inputs = ["-i", voice_path]
-    if has_m: audio_inputs += ["-i", m_path]
-    if has_s: audio_inputs += ["-i", s_path]
+    # 4. Audio Mixing
+    a_ins = ["-i", voice_path]
+    has_m = os.path.exists(m_path)
+    has_s = os.path.exists(s_path)
+    if has_m: a_ins += ["-i", m_path]
+    if has_s: a_ins += ["-i", s_path]
 
-    # Build Audio Filter
-    a_filters = ["[1:a]volume=1.0[va]"] # [va] = voice audio
-    mix_labels = ["[va]"]
-    
+    a_mix = "[1:a]volume=1.0[va]"
+    labels = ["[va]"]
     if has_m:
-        a_filters.append("[2:a]volume=0.15[ma]") # [ma] = music audio
-        mix_labels.append("[ma]")
+        a_mix += ";[2:a]volume=0.15[ma]"
+        labels.append("[ma]")
     if has_s:
         idx = 2 + int(has_m)
-        a_filters.append(f"[{idx}:a]volume=0.8[sa]") # [sa] = sfx audio
-        mix_labels.append("[sa]")
+        a_mix += f";[{idx}:a]volume=0.8[sa]"
+        labels.append("[sa]")
     
-    if len(mix_labels) > 1:
-        a_filter_str = f"{';'.join(a_filters)};{''.join(mix_labels)}amix=inputs={len(mix_labels)}:duration=first[aout]"
+    if len(labels) > 1:
+        final_a = f"{a_mix};{''.join(labels)}amix=inputs={len(labels)}:duration=first[aout]"
     else:
-        a_filter_str = f"{a_filters[0].replace('[va]', '[aout]')}"
+        final_a = "[1:a]volume=1.0[aout]"
 
-    # 5. Final FFmpeg Execution (List mode is safer)
-    cmd = [
-        "ffmpeg", "-y"
-    ] + video_input + audio_inputs + [
-        "-filter_complex", f"[0:v]{v_base_filter},{','.join(draw_filters)}[vout];{a_filter_str}",
-        "-map", "[vout]", "-map", "[aout]",
-        "-t", str(duration),
-        "-c:v", "libx264", "-preset", "superfast", "-crf", "22",
-        "output/final.mp4"
+    # 5. Execute
+    cmd = ["ffmpeg", "-y"] + v_in + a_ins + [
+        "-filter_complex", f"[0:v]{v_filt},{','.join(draw_filters)}[vout];{final_a}",
+        "-map", "[vout]", "-map", "[aout]", "-t", str(duration),
+        "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "output/final.mp4"
     ]
     
     print("🎬 Rendering...")
     subprocess.run(cmd)
 
-def upload_logic(path, caption):
-    if not INSTA_TOKEN or not INSTA_ID or "YOUR" in INSTA_TOKEN:
-        print("💡 No API keys found. Download the video from GitHub Artifacts.")
-        return
+async def main():
+    print("🚀 Agent Starting...")
+    data = await generate_content()
+    v_path, duration = await create_voice(data['script'])
+    render_video(data, v_path, duration)
+    
+    if os.path.exists("output/final.mp4"):
+        print("✅ Success! Video ready in output/final.mp4")
+    else:
+        print("❌ Video creation failed.")
+
+if __name__ == "__main__":
+    asyncio.run(main())        return
     try:
         files = {'fileToUpload': open(path, 'rb')}
         v_url = requests.post("https://catbox.moe/user/api.php", data={'reqtype': 'fileupload'}, files=files).text
