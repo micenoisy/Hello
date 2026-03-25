@@ -75,11 +75,6 @@ async def main():
     if os.path.exists("output/final.mp4"): 
         print(f"✅ SUCCESS: Studio-Mastered Reel Ready ({round(dur, 2)}s)")
 
-if __name__ == "__main__":
-    import random # Needed for template selection
-    asyncio.run(main())   
-    if os.path.exists("output/final.mp4"): 
-        print(f"✅ SUCCESS: Studio Reel Ready ({round(dur, 2)}s)")
 
 if __name__ == "__main__":
     asyncio.run(main())
