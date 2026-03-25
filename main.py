@@ -10,7 +10,7 @@ async def process_audio(text):
     print("🎙️ AUDIO: Processing Voice & Whisper Sync...")
     voice_p = "assets/voice.mp3"
     # Christopher Settings: Natural, Deep, Studio Quality
-    c = Communicate(text, "en-US-ChristopherNeural", rate="+0%", pitch="-4Hz")
+    c = Communicate(text, "en-US-ChristopherNeural", rate="+8%", pitch="-10Hz")
     await c.save(voice_p)
     
     # Transcription for Micro-Sync
@@ -75,6 +75,6 @@ async def main():
     if os.path.exists("output/final.mp4"): 
         print(f"✅ SUCCESS: Studio-Mastered Reel Ready ({round(dur, 2)}s)")
 
-
 if __name__ == "__main__":
+    import random # Needed for template selection
     asyncio.run(main())
