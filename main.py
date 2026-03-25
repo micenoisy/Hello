@@ -35,14 +35,14 @@ async def get_script():
         return json.loads(m.group()), cfg
     except Exception as e:
         print(f"⚠️ AI FAIL ({e}): Using Fallback.")
-        return {"script": "Smile hides everything; he mastered the art of being exactly what people needed, listening just enough, caring just enough, existing like a mirror that reflected their desires back at them until they trusted him without question. He studied pauses, eye movements, the weight of silence, turning human behavior into a predictable pattern he could bend at will; a small suggestion here, a planted doubt there, and suddenly people began making decisions that felt like their own but were never truly theirs. He didn’t control them directly, he guided them invisibly, and that"}, {"red_words": ["never", "dangerous", "truth"], "yellow_words": ["everything", "move"]}
+        return {"script": "Smile Smile hides everything; he mastered the art of being exactly what people Smile hides everything; he mastered the art of being exactly what people hides everything; he mastered the art of being exactly what people needed, listening just enough, caring just enough, existing like a mirror that reflected their desires back at them until they trusted him without question. He studied pauses, eye movements, the weight of silence, turning human behavior into a predictable pattern he could bend at will; a small suggestion here, a planted doubt there, and suddenly people began making decisions that felt like their own but were never truly theirs. He didn’t control them directly, he guided them invisibly, and that"}, {"red_words": ["never", "dangerous", "truth"], "yellow_words": ["everything", "move"]}
 # [3] NATURAL AUDIO: VOICE -> WHISPER SYNC
 async def process_audio(text):
     print("🎙️ AUDIO: Generating Natural Human Voiceover...")
     voice_p = "assets/voice.mp3"
     
     # Christopher Settings: Professional, Deep, Authoritative
-    c = Communicate(text, "en-US-ChristopherNeural", rate="+4%", pitch="-5Hz")
+    c = Communicate(text, "en-US-ChristopherNeural", rate="+0%", pitch="-5Hz")
     await c.save(voice_p)
     
     # WHISPER MICRO-SYNC (Transcribes the natural rhythm)
