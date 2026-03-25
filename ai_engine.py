@@ -1,64 +1,56 @@
 import os, json, random, requests, re
 
-# Load OpenRouter Key
-OR_KEY = os.getenv("OPENROUTER_API_KEY")
+# [1] GROQ CONFIG
+API_KEY = os.getenv("GROQ_API_KEY")
+URL = "https://api.groq.com/openai/v1/chat/completions"
+HEADERS = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json"
+}
 
 async def get_script():
-    print("🧠 AI_ENGINE: Processing viral logic...")
+    print("🚀 AI_ENGINE: Calling Groq (Llama 3.1 8B Instant)...")
     try:
-        # 1. Load Topics & Power Words
-        with open('config.json', 'r') as f: 
-            cfg = json.load(f)
-        
+        with open('config.json', 'r') as f: cfg = json.load(f)
         topic = random.choice(cfg['topics'])
         
-        # 2. Call OpenRouter (Llama 3.3 70B)
-        # Added a highly aggressive 'Retention-First' prompt
-        res = requests.post(
-            url="https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OR_KEY}",
-                "Content-Type": "application/json"
-            },
-            data=json.dumps({
-                "model": "meta-llama/llama-3.3-70b-instruct:free",
-                "messages": [{
-                    "role": "user", 
-                    "content": f"""
-                    Act as a Dark Psychology & Short-Form Content Expert. 
-                    Write a 15-18 second script about {topic}.
-                    
-                    Structure:
-                    - 0-3s: AN EXTREME HOOK. Use words like 'LETHAL', 'DANGEROUS', 'SECRET'.
-                    - 3-15s: 3 short, punchy facts. Max 5 words per sentence.
-                    - 15-18s: A loop sentence that connects back to the start.
-                    
-                    Tone: Dark, mysterious, aggressive. No emojis.
-                    Return ONLY valid JSON: 
-                    {{"script": "...", "caption": "...", "hashtags": "..."}}
-                    """
-                }]
-            })
-        )
+        # AGGRESSIVE VIRAL PROMPT
+        prompt = f"""
+        Act as a Master of Dark Psychology and Viral Storytelling. 
+        Create a 15-18 second script for a viral Reel about {topic}.
         
-        response_data = res.json()
-        if 'choices' not in response_data:
-            raise ValueError(f"AI API Error: {response_data}")
-            
-        content = response_data['choices'][0]['message']['content']
+        Rules for Millions of Views:
+        - Line 1 (The Hook): Must be an aggressive accusation or a terrifying warning.
+        - Body: Use 'The Shadow' perspective. Reveal a tactic that makes the viewer feel exposed.
+        - Loop: The final sentence must be a cliffhanger that flows perfectly into the first word.
+        - Style: No 'Hello' or 'Welcome'. Start with the knife.
         
-        # 3. Clean and parse JSON
-        json_match = re.search(r'\{.*\}', content, re.DOTALL)
-        final_data = json.loads(json_match.group())
+        Return ONLY valid JSON:
+        {{
+            "script": "...",
+            "caption": "...",
+            "hashtags": "..."
+        }}
+        """
+
+        payload = {
+            "model": "llama-3.1-8b-instant",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.8,
+            "response_format": {"type": "json_object"} # Forces Groq to return clean JSON
+        }
+
+        response = requests.post(URL, headers=HEADERS, json=payload)
+        data = response.json()
         
-        print(f"✅ AI_ENGINE: Script ready for topic: {topic}")
-        return final_data, cfg
+        script_data = json.loads(data["choices"][0]["message"]["content"])
+        print(f"✅ AI_ENGINE: Viral Script Generated for '{topic}'")
+        return script_data, cfg
 
     except Exception as e:
-        print(f"⚠️ AI_ENGINE FAIL: {e}. Launching Emergency Fallback.")
-        # Bulletproof fallback so the automation never stops
+        print(f"⚠️ AI_ENGINE FAIL: {e}")
         return {
-            "script": "NEVER REVEAL YOUR NEXT MOVE, THE MOST DANGEROUS PERSON WATCHES EVERYTHING IN SILENCE, THEY KNOW THE TRUTH. AND THAT IS WHY...",
-            "caption": "Silence is the ultimate weapon.",
-            "hashtags": "#darkpsychology #manipulation #mindset"
-        }, {"red_words": ["never", "dangerous", "truth"], "yellow_words": ["everything", "silence", "move"]}
+            "script": "THE MOST DANGEROUS PERSON IS THE ONE WHO WATCHES EVERYTHING. THEY ARE CALCULATING YOUR MOVE. THIS IS WHY YOU NEVER REVEAL THE TRUTH.",
+            "caption": "Silence is power.",
+            "hashtags": "#darkpsychology"
+        }, {"red_words": ["dangerous", "never"], "yellow_words": ["everything", "move"]}
