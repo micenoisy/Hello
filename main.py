@@ -42,7 +42,7 @@ async def process_audio(text):
     voice_p = "assets/voice.mp3"
     
     # Christopher Settings: Professional, Deep, Authoritative
-    c = Communicate(text, "en-US-ChristopherNeural", rate="+8%", pitch="-10Hz")
+    c = Communicate(text, "en-US-ChristopherNeural", rate="+4%", pitch="-5Hz")
     await c.save(voice_p)
     
     # WHISPER MICRO-SYNC (Transcribes the natural rhythm)
