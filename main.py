@@ -10,7 +10,7 @@ async def process_audio(text):
     print("🎙️ AUDIO: Generating Natural Voice & Whisper Sync...")
     vp = "assets/voice.mp3"
     # Christopher Settings: Deep & Authoritative
-    c = Communicate(text, "en-US-ChristopherNeural", rate="+8%", pitch="-10Hz")
+    c = Communicate(text, "en-US-ChristopherNeural", rate="+4%", pitch="-0Hz")
     await c.save(vp)
     
     # Micro-Sync with Local Whisper
