@@ -50,7 +50,7 @@ async def get_script():
     except Exception as e:
         print(f"⚠️ AI_ENGINE FAIL: {e}")
         return {
-            "script": "THE MOST DANGEROUS PERSON IS THE ONE WHO WATCHES EVERYTHING. THEY ARE CALCULATING YOUR MOVE. THIS IS WHY YOU NEVER REVEAL THE TRUTH.",
+            "script": "They are already controlling you, and you still think you are in charge. Every time you hesitate, every time you overthink, that is not your real voice. That is conditioning, built slowly so you doubt yourself and stay quiet and predictable. You were trained without even noticing, and the one who did it is still around you every single day. And the worst part is, they are about to reveal themselves right now… they are—",
             "caption": "Silence is power.",
             "hashtags": "#darkpsychology"
         }, {"red_words": ["dangerous", "never"], "yellow_words": ["everything", "move"]}
