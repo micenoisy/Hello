@@ -50,24 +50,7 @@ async def get_script():
     except Exception as e:
         print(f"⚠️ AI_ENGINE FAIL: {e}")
         return {
-            "script": "Bizarre anxiety hacks my therapist taught me that actually saved my mental health
-Make weird faces in the mirror until you laugh
-It breaks the anxiety loop because your brain cannot feel fear and laughter at the same time
-Hold ice cubes in both hands
-The cold shock forces your body out of fight or flight mode almost instantly
-Count backwards from one hundred by sevens
-Your brain gets so focused on the numbers that the anxiety loop stops
-Say thank you anxiety out loud
-When you stop fighting it and accept it the feeling loses power faster
-Write everything in your head somewhere safe
-Getting your thoughts out helps your brain slow down and process them
-Hum your favorite song out loud
-The vibration calms your nervous system and makes it harder to overthink
-Do one small brain task
-Even a tiny action can break the freeze and bring you back into control
-Text someone I am spiraling but I do not need advice
-Saying it out loud to someone can break the cycle instantly
-Save this for when your mind starts spiraling",
+            "script": "Bizarre anxiety hacks my therapist taught me that actually saved my mental health. Make weird faces in the mirror until you laugh. It breaks the anxiety loop because your brain cannot feel fear and laughter at the same time. Hold ice cubes in both hands. The cold shock forces your body out of fight or flight mode almost instantly. Count backwards from one hundred by sevens. Your brain gets so focused on the numbers that the anxiety loop stops. Say thank you anxiety out loud. When you stop fighting it and accept it, the feeling loses power faster. Write everything in your head somewhere safe. Getting your thoughts out helps your brain slow down and process them. Hum your favorite song out loud. The vibration calms your nervous system and makes it harder to overthink. Do one small brain task. Even a tiny action can break the freeze and bring you back into control. Text someone, I am spiraling but I do not need advice. Saying it out loud to someone can break the cycle instantly. Save this for when your mind starts spiraling.",
             "caption": "Silence is power.",
             "hashtags": "#darkpsychology"
         }, {"red_words": ["dangerous", "never"], "yellow_words": ["everything", "move"]}
